@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "debug": "DEBUG=true node server.js"
+    "debug": "DEBUG=true node server.js",
+    "setup": "node setup-db.js",
+    "recalc-stats": "node recalc-stats.js"
   },
   "keywords": [
     "claude-code",

@@ -6,6 +6,7 @@ const axios = require('axios');
 const { Browser, Curl, impersonate } = require('node-libcurl-ja3');
 const WebSocket = require('ws');
 const http = require('http');
+const { setupDatabase } = require('./db-setup');
 
 const app = express();
 const server = http.createServer(app);
@@ -40,106 +41,46 @@ const dbConfig = {
 
 // Initialize RethinkDB connection and schema
 async function initializeDatabase() {
+  // Try to connect to RethinkDB
   try {
-    // Connect to RethinkDB (uses WebSocket by default)
     console.log(`🔌 Connecting to RethinkDB at ${dbConfig.host}:${dbConfig.port}...`);
     dbConnection = await r.connect(dbConfig);
     console.log('📦 Connected to RethinkDB via WebSocket (native RethinkDB protocol)');
     console.log(`   Connection type: TCP with WebSocket-like protocol on port ${dbConfig.port}`);
     console.log(`   Database: ${dbConfig.db}`);
-
-    // Create database if it doesn't exist
-    const dbList = await r.dbList().run(dbConnection);
-    if (!dbList.includes('metrics')) {
-      await r.dbCreate('metrics').run(dbConnection);
-      console.log('  ✅ Created database: metrics');
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED') {
+      console.error('\n❌ ERROR: Cannot connect to RethinkDB\n');
+      console.error('RethinkDB is not running. Please start it first:\n');
+      console.error('  Option 1 (Local):');
+      console.error('    rethinkdb\n');
+      console.error('  Option 2 (Docker):');
+      console.error('    docker run -d --name rethinkdb -p 28015:28015 -p 8080:8080 rethinkdb\n');
+      console.error('  Then restart this server with: npm start\n');
+      process.exit(1);
+    } else if (error.code === 'ETIMEDOUT' || error.code === 'EHOSTUNREACH') {
+      console.error('\n❌ ERROR: Cannot reach RethinkDB server\n');
+      console.error('Network issue or incorrect host/port configuration.\n');
+      console.error(`  Current configuration: ${dbConfig.host}:${dbConfig.port}\n`);
+      console.error('  Check RETHINKDB_HOST and RETHINKDB_PORT environment variables.\n');
+      process.exit(1);
+    } else {
+      console.error('\n❌ ERROR: Failed to connect to RethinkDB\n');
+      console.error(`  ${error.message}\n`);
+      process.exit(1);
     }
+  }
 
-    // Create tables if they don't exist
-    const tableList = await r.db('metrics').tableList().run(dbConnection);
-
-    if (!tableList.includes('metrics')) {
-      await r.db('metrics').tableCreate('metrics').run(dbConnection);
-      console.log('  ✅ Created table: metrics');
-
-      // Create indexes for metrics table
-      await r.db('metrics').table('metrics').indexCreate('timestamp').run(dbConnection);
-      await r.db('metrics').table('metrics').indexCreate('name').run(dbConnection);
-      console.log('  ✅ Created indexes for metrics table');
-    }
-
-    if (!tableList.includes('events')) {
-      await r.db('metrics').tableCreate('events').run(dbConnection);
-      console.log('  ✅ Created table: events');
-
-      // Create indexes for events table
-      await r.db('metrics').table('events').indexCreate('timestamp').run(dbConnection);
-      await r.db('metrics').table('events').indexCreate('type').run(dbConnection);
-      console.log('  ✅ Created indexes for events table');
-    }
-
-    if (!tableList.includes('sessions')) {
-      await r.db('metrics').tableCreate('sessions').run(dbConnection);
-      console.log('  ✅ Created table: sessions');
-
-      // Create indexes for sessions table
-      await r.db('metrics').table('sessions').indexCreate('sessionId').run(dbConnection);
-      await r.db('metrics').table('sessions').indexCreate('lastSeen').run(dbConnection);
-      await r.db('metrics').table('sessions').indexCreate('terminalType').run(dbConnection);
-      console.log('  ✅ Created indexes for sessions table');
-    }
-
-    if (!tableList.includes('metric_buckets')) {
-      await r.db('metrics').tableCreate('metric_buckets').run(dbConnection);
-      console.log('  ✅ Created table: metric_buckets');
-
-      // Create indexes for metric_buckets table
-      await r.db('metrics').table('metric_buckets').indexCreate('bucketTime').run(dbConnection);
-      await r.db('metrics').table('metric_buckets').indexCreate('lastUpdated').run(dbConnection);
-      console.log('  ✅ Created indexes for metric_buckets table');
-    }
-
-    if (!tableList.includes('aggregated_stats')) {
-      await r.db('metrics').tableCreate('aggregated_stats').run(dbConnection);
-      console.log('  ✅ Created table: aggregated_stats');
-
-      // Initialize with empty stats record
-      await r.db('metrics').table('aggregated_stats').insert({
-        id: 'current',
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        cacheCreationTokens: 0,
-        totalCost: 0,
-        activeTimeCLI: 0,
-        activeTimePlanning: 0,
-        activeTimeUser: 0,
-        linesOfCode: 0,
-        commandsBlocked: 0,
-        gitFailures: 0,
-        filesModified: 0,
-        toolCalls: 0,
-        byModel: {},
-        lastUpdated: Date.now()
-      }).run(dbConnection);
-      console.log('  ✅ Initialized aggregated_stats table');
-    }
-
-    // Create claude_usage_history table for storing historical Claude.ai usage data
-    if (!tableList.includes('claude_usage_history')) {
-      await r.db('metrics').tableCreate('claude_usage_history').run(dbConnection);
-      console.log('  ✅ Created table: claude_usage_history');
-
-      // Create indexes for claude_usage_history table
-      await r.db('metrics').table('claude_usage_history').indexCreate('timestamp').run(dbConnection);
-      console.log('  ✅ Created indexes for claude_usage_history table');
-    }
-
-    console.log('✅ Database schema initialized');
+  // Try to set up database schema
+  try {
+    await setupDatabase(dbConnection);
     return dbConnection;
-  } catch (err) {
-    console.error('Error initializing database:', err);
-    throw err;
+  } catch (error) {
+    console.error('\n❌ ERROR: Failed to initialize database schema\n');
+    console.error(`  ${error.message}\n`);
+    console.error('  This may be a permissions issue or database corruption.\n');
+    console.error('  Check RethinkDB logs for more details: http://localhost:8080\n');
+    process.exit(1);
   }
 }
 

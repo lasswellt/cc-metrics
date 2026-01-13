@@ -13,8 +13,20 @@ Claude Code Metrics Dashboard is a Node.js application that monitors Claude Code
 npm start                # Start the dashboard server
 npm run dev             # Same as start (alias)
 npm run debug           # Start with DEBUG=true for verbose logging
-node recalc-stats.js    # Recalculate aggregated stats from sessions
+npm run recalc-stats    # Recalculate aggregated stats from sessions
 ```
+
+### Database Setup
+```bash
+npm run setup           # Initialize RethinkDB database schema
+                        # (Runs automatically on first server start)
+```
+
+**Note:** Database setup happens automatically when you first start the server. The `npm run setup` command is useful for:
+- Manual initialization before starting the server
+- Troubleshooting database issues
+- CI/CD pipelines
+- Verifying database connectivity
 
 ### Testing
 Test the OTLP endpoint manually:
@@ -163,8 +175,9 @@ The `metric_buckets` table aggregates metrics into 1-hour windows:
 ### 1. RethinkDB Connection Failures
 
 **Symptoms:**
-- Server crashes on startup with "Error initializing database"
-- Error: "ECONNREFUSED 127.0.0.1:28015"
+- Server shows error: "❌ ERROR: Cannot connect to RethinkDB"
+- Error message: "ECONNREFUSED 127.0.0.1:28015"
+- Server exits with clear error message and instructions
 
 **Diagnosis:**
 ```bash
@@ -179,17 +192,47 @@ telnet localhost 28015
 ```
 
 **Solutions:**
-- Start RethinkDB: `rethinkdb` or `docker start rethinkdb`
-- Check firewall isn't blocking port 28015
-- Verify RETHINKDB_HOST and RETHINKDB_PORT environment variables
-- Check RethinkDB logs for startup errors
+1. **Start RethinkDB** (choose one method):
+   ```bash
+   # Option 1: Local installation
+   rethinkdb
+
+   # Option 2: Docker
+   docker run -d --name rethinkdb -p 28015:28015 -p 8080:8080 rethinkdb
+
+   # Option 3: Start existing Docker container
+   docker start rethinkdb
+   ```
+
+2. **Verify database setup** (optional):
+   ```bash
+   npm run setup
+   ```
+   Note: Database setup runs automatically when you start the server, so this step is usually not needed.
+
+3. **Check configuration**:
+   - Verify RETHINKDB_HOST and RETHINKDB_PORT environment variables
+   - Check firewall isn't blocking port 28015
+   - Review RethinkDB logs for startup errors
 
 **Expected Success Log:**
 ```
 🔌 Connecting to RethinkDB at localhost:28015...
 📦 Connected to RethinkDB via WebSocket (native RethinkDB protocol)
+   Connection type: TCP with WebSocket-like protocol on port 28015
+   Database: metrics
+  ✅ Created database: metrics (or "ℹ️ Database already exists: metrics")
+  ✅ Created table: metrics (or "ℹ️ Table already exists: metrics")
+  ... (additional tables and indexes)
 ✅ Database schema initialized
 ```
+
+**Improved Error Messages:**
+The server now provides clear, actionable error messages when RethinkDB is not running:
+- Detects connection refused (ECONNREFUSED)
+- Shows exact commands to start RethinkDB
+- Exits gracefully instead of crashing
+- Suggests next steps to resolve the issue
 
 ### 2. No Data Appearing in Dashboard
 
