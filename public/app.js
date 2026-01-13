@@ -658,7 +658,7 @@ function updateEvents(eventsData) {
             <div class="event-item">
                 <div class="event-header">
                     <span class="event-type">${escapeHtml(event.type)}</span>
-                    ${event.severity && event.severity !== 'INFO' ? `<span class="severity-badge severity-${event.severity.toLowerCase()}">${event.severity}</span>` : ''}
+                    ${event.severity && event.severity !== 'INFO' ? `<span class="severity-badge severity-${escapeHtml(event.severity).toLowerCase()}">${escapeHtml(event.severity)}</span>` : ''}
                     <span class="event-time">${formatRelativeTime(event.timestamp)}</span>
                 </div>
                 <div class="event-body">
@@ -1281,6 +1281,21 @@ if (USE_CHANGEFEED_METRICS) {
 }
 
 function connectWebSocket() {
+    // Clear any existing reconnect timer
+    if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+    }
+
+    // Close existing WebSocket connection if it exists
+    if (ws) {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            console.log('🔌 Closing existing WebSocket connection');
+            ws.close();
+        }
+        ws = null;
+    }
+
     // Build WebSocket URL from current location
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;

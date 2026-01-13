@@ -29,6 +29,286 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.raw({ type: 'application/x-protobuf', limit: '50mb' }));
 
+// Security headers middleware
+app.use((req, res, next) => {
+  // Content Security Policy - prevents XSS attacks
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: https:; " +
+    "connect-src 'self' ws: wss:; " +
+    "font-src 'self' data:; " +
+    "object-src 'none'; " +
+    "base-uri 'self'; " +
+    "form-action 'self'; " +
+    "frame-ancestors 'none'; " +
+    "upgrade-insecure-requests;"
+  );
+
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  // Enable XSS filter in browsers
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+
+  // Referrer policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  next();
+});
+
+// Input validation middleware functions
+function validateOTLPPayload(req, res, next) {
+  const data = req.body;
+
+  // Check basic structure
+  if (!data || typeof data !== 'object') {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      message: 'Request body must be a valid JSON object'
+    });
+  }
+
+  // OTLP metrics payload must have resourceMetrics array
+  if (data.resourceMetrics !== undefined) {
+    if (!Array.isArray(data.resourceMetrics)) {
+      return res.status(400).json({
+        error: 'Invalid OTLP payload',
+        message: 'resourceMetrics must be an array'
+      });
+    }
+
+    // Validate structure of resourceMetrics
+    for (const rm of data.resourceMetrics) {
+      if (rm.scopeMetrics && !Array.isArray(rm.scopeMetrics)) {
+        return res.status(400).json({
+          error: 'Invalid OTLP payload',
+          message: 'scopeMetrics must be an array'
+        });
+      }
+    }
+  }
+
+  // OTLP logs payload must have resourceLogs array
+  if (data.resourceLogs !== undefined) {
+    if (!Array.isArray(data.resourceLogs)) {
+      return res.status(400).json({
+        error: 'Invalid OTLP payload',
+        message: 'resourceLogs must be an array'
+      });
+    }
+  }
+
+  next();
+}
+
+function validateUsageLimits(req, res, next) {
+  const { dailyTokenLimit, weeklyTokenLimit, dailyCostLimit, weeklyCostLimit, enabled } = req.body;
+
+  // Validate token limits
+  if (dailyTokenLimit !== undefined) {
+    if (typeof dailyTokenLimit !== 'number' || dailyTokenLimit < 0 || !isFinite(dailyTokenLimit)) {
+      return res.status(400).json({
+        error: 'Invalid input',
+        message: 'dailyTokenLimit must be a non-negative finite number'
+      });
+    }
+  }
+
+  if (weeklyTokenLimit !== undefined) {
+    if (typeof weeklyTokenLimit !== 'number' || weeklyTokenLimit < 0 || !isFinite(weeklyTokenLimit)) {
+      return res.status(400).json({
+        error: 'Invalid input',
+        message: 'weeklyTokenLimit must be a non-negative finite number'
+      });
+    }
+  }
+
+  // Validate cost limits
+  if (dailyCostLimit !== undefined) {
+    if (typeof dailyCostLimit !== 'number' || dailyCostLimit < 0 || !isFinite(dailyCostLimit)) {
+      return res.status(400).json({
+        error: 'Invalid input',
+        message: 'dailyCostLimit must be a non-negative finite number'
+      });
+    }
+  }
+
+  if (weeklyCostLimit !== undefined) {
+    if (typeof weeklyCostLimit !== 'number' || weeklyCostLimit < 0 || !isFinite(weeklyCostLimit)) {
+      return res.status(400).json({
+        error: 'Invalid input',
+        message: 'weeklyCostLimit must be a non-negative finite number'
+      });
+    }
+  }
+
+  // Validate enabled flag
+  if (enabled !== undefined && typeof enabled !== 'boolean') {
+    return res.status(400).json({
+      error: 'Invalid input',
+      message: 'enabled must be a boolean'
+    });
+  }
+
+  next();
+}
+
+function validateCookieString(req, res, next) {
+  const { sessionKey, userAgent } = req.body;
+
+  // Validate sessionKey
+  if (!sessionKey || typeof sessionKey !== 'string') {
+    return res.status(400).json({
+      error: 'Invalid input',
+      message: 'sessionKey must be a non-empty string'
+    });
+  }
+
+  // Limit sessionKey length to prevent DoS (max 10KB)
+  if (sessionKey.length > 10240) {
+    return res.status(400).json({
+      error: 'Invalid input',
+      message: 'sessionKey is too large (max 10KB)'
+    });
+  }
+
+  // Validate userAgent if provided
+  if (userAgent !== undefined) {
+    if (typeof userAgent !== 'string' || userAgent.length > 1024) {
+      return res.status(400).json({
+        error: 'Invalid input',
+        message: 'userAgent must be a string (max 1KB)'
+      });
+    }
+  }
+
+  next();
+}
+
+/**
+ * Parses an OTLP metric into field updates for database operations.
+ * This utility function centralizes the metric name-to-field mapping logic
+ * that was previously duplicated across multiple functions.
+ *
+ * @param {string} metricName - OTLP metric name (e.g., "claude_code.token.usage")
+ * @param {number} value - Metric value
+ * @param {Object} attributes - OTLP attributes object (may contain 'type' attribute)
+ * @returns {Object} Object with fieldUpdates and byModelUpdates properties
+ */
+function parseMetricToFieldUpdates(metricName, value, attributes) {
+  const fieldUpdates = {};
+  const byModelUpdates = {};
+
+  switch (metricName) {
+    case 'claude_code.token.usage':
+      const tokenType = attributes.type;
+      if (tokenType === 'input') {
+        fieldUpdates.inputTokens = value;
+        byModelUpdates.inputTokens = value;
+      } else if (tokenType === 'output') {
+        fieldUpdates.outputTokens = value;
+        byModelUpdates.outputTokens = value;
+      } else if (tokenType === 'cacheRead') {
+        fieldUpdates.cacheReadTokens = value;
+        byModelUpdates.cacheReadTokens = value;
+      } else if (tokenType === 'cacheCreation') {
+        fieldUpdates.cacheCreationTokens = value;
+        byModelUpdates.cacheCreationTokens = value;
+      }
+      break;
+
+    case 'claude_code.cost.usage':
+      fieldUpdates.totalCost = value;
+      byModelUpdates.cost = value;
+      break;
+
+    case 'claude_code.active_time.total':
+      const timeType = attributes.type;
+      if (timeType === 'cli') {
+        fieldUpdates.activeTimeCLI = value / 1000; // Convert ms to seconds
+      } else if (timeType === 'planning') {
+        fieldUpdates.activeTimePlanning = value / 1000;
+      } else if (timeType === 'user') {
+        fieldUpdates.activeTimeUser = value / 1000;
+      }
+      break;
+
+    case 'claude_code.lines_of_code.count':
+      fieldUpdates.linesOfCode = value;
+      break;
+
+    case 'claude_code.hook.commands_blocked':
+      fieldUpdates.commandsBlocked = value;
+      break;
+
+    case 'claude_code.hook.git_failures':
+      fieldUpdates.gitFailures = value;
+      break;
+
+    case 'claude_code.tool.files_modified':
+      fieldUpdates.filesModified = value;
+      break;
+
+    case 'claude_code.tool.calls':
+      fieldUpdates.toolCalls = value;
+      break;
+
+    case 'claude_code.session.common_mode':
+      fieldUpdates.commonModeCount = value;
+      break;
+  }
+
+  return { fieldUpdates, byModelUpdates };
+}
+
+/**
+ * Retry wrapper for database operations with exponential backoff.
+ * Retries transient errors (connection issues, timeouts) but not data errors.
+ *
+ * @param {Function} operation - Async function to retry
+ * @param {string} operationName - Name of the operation for logging
+ * @param {number} maxRetries - Maximum number of retry attempts (default: 3)
+ * @param {number} initialDelay - Initial delay in ms (default: 1000)
+ * @returns {Promise<any>} Result of the operation
+ */
+async function retryDatabaseOperation(operation, operationName, maxRetries = 3, initialDelay = 1000) {
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on data validation errors or if no connection
+      if (!dbConnection || error.name === 'ReqlQueryLogicError' || error.name === 'ReqlNonExistenceError') {
+        throw error;
+      }
+
+      // If this was the last attempt, throw the error
+      if (attempt === maxRetries) {
+        console.error(`❌ ${operationName} failed after ${maxRetries + 1} attempts:`, error.message);
+        throw error;
+      }
+
+      // Calculate exponential backoff delay
+      const delay = initialDelay * Math.pow(2, attempt);
+      console.warn(`⚠️  ${operationName} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
 // RethinkDB Database Setup (WebSocket connection)
 let dbConnection = null;
 
@@ -397,29 +677,41 @@ async function saveMetricToDB(timestamp, name, value, attributes) {
   const model = attributes.model || 'unknown';
 
   try {
-    await r.db('metrics').table('metrics').insert({
-      timestamp: timestamp,
-      name: name,
-      value: value,
-      attributes: attributes,
-      model: model
-    }).run(dbConnection);
+    await retryDatabaseOperation(
+      async () => {
+        return await r.db('metrics').table('metrics').insert({
+          timestamp: timestamp,
+          name: name,
+          value: value,
+          attributes: attributes,
+          model: model
+        }).run(dbConnection);
+      },
+      `Save metric ${name} to DB`
+    );
   } catch (err) {
     console.error('Error saving metric to DB:', err);
+    // Don't throw - allow other operations to continue
   }
 }
 
 async function saveEventToDB(timestamp, type, body, attributes, severity) {
   try {
-    await r.db('metrics').table('events').insert({
-      timestamp: timestamp,
-      type: type,
-      body: body,
-      attributes: attributes,
-      severity: severity
-    }).run(dbConnection);
+    await retryDatabaseOperation(
+      async () => {
+        return await r.db('metrics').table('events').insert({
+          timestamp: timestamp,
+          type: type,
+          body: body,
+          attributes: attributes,
+          severity: severity
+        }).run(dbConnection);
+      },
+      `Save event ${type} to DB`
+    );
   } catch (err) {
     console.error('Error saving event to DB:', err);
+    // Don't throw - allow other operations to continue
   }
 }
 
@@ -427,48 +719,8 @@ async function upsertSession(sessionId, terminalType, metricName, value, model, 
   if (!sessionId || !dbConnection) return;
 
   try {
-    // Determine what fields to update based on metric type
-    let fieldUpdates = {};
-    let byModelUpdates = {};
-
-    switch (metricName) {
-      case 'claude_code.token.usage':
-        const tokenType = attributes.type;
-        if (tokenType === 'input') {
-          fieldUpdates.inputTokens = value;
-          byModelUpdates.inputTokens = value;
-        } else if (tokenType === 'output') {
-          fieldUpdates.outputTokens = value;
-          byModelUpdates.outputTokens = value;
-        } else if (tokenType === 'cacheRead') {
-          fieldUpdates.cacheReadTokens = value;
-          byModelUpdates.cacheReadTokens = value;
-        } else if (tokenType === 'cacheCreation') {
-          fieldUpdates.cacheCreationTokens = value;
-          byModelUpdates.cacheCreationTokens = value;
-        }
-        break;
-      case 'claude_code.cost.usage':
-        fieldUpdates.totalCost = value;
-        byModelUpdates.cost = value;
-        break;
-      case 'claude_code.active_time.total':
-        const timeType = attributes.type;
-        if (timeType === 'cli') {
-          fieldUpdates.activeTimeCLI = value / 1000; // Convert ms to seconds
-        } else if (timeType === 'planning') {
-          fieldUpdates.activeTimePlanning = value / 1000;
-        } else if (timeType === 'user') {
-          fieldUpdates.activeTimeUser = value / 1000;
-        }
-        break;
-      case 'claude_code.lines_of_code.count':
-        fieldUpdates.linesOfCode = value;
-        break;
-      case 'claude_code.session.common_mode':
-        fieldUpdates.commonModeCount = value;
-        break;
-    }
+    // Parse metric into field updates using centralized utility function
+    const { fieldUpdates, byModelUpdates } = parseMetricToFieldUpdates(metricName, value, attributes);
 
     // Debug logging for active time metrics
     if (fieldUpdates.activeTimeCLI || fieldUpdates.activeTimePlanning || fieldUpdates.activeTimeUser) {
@@ -559,48 +811,8 @@ async function updateMetricBucket(timestamp, metricName, value, attributes) {
     const bucketTime = Math.floor(timestamp / 60000) * 60000; // Floor to 1-min bucket
     const model = attributes.model || 'unknown';
 
-    // Determine which fields to update based on metric type
-    let fieldUpdates = {};
-    let byModelUpdates = {};
-
-    if (metricName === 'claude_code.token.usage') {
-      const tokenType = attributes.type;
-      if (tokenType === 'input') {
-        fieldUpdates.inputTokens = value;
-        byModelUpdates.inputTokens = value;
-      } else if (tokenType === 'output') {
-        fieldUpdates.outputTokens = value;
-        byModelUpdates.outputTokens = value;
-      } else if (tokenType === 'cacheRead') {
-        fieldUpdates.cacheReadTokens = value;
-        byModelUpdates.cacheReadTokens = value;
-      } else if (tokenType === 'cacheCreation') {
-        fieldUpdates.cacheCreationTokens = value;
-        byModelUpdates.cacheCreationTokens = value;
-      }
-    } else if (metricName === 'claude_code.cost.usage') {
-      fieldUpdates.totalCost = value;
-      byModelUpdates.cost = value;
-    } else if (metricName === 'claude_code.active_time.total') {
-      const timeType = attributes.type;
-      if (timeType === 'cli') {
-        fieldUpdates.activeTimeCLI = value / 1000; // Convert ms to seconds
-      } else if (timeType === 'planning') {
-        fieldUpdates.activeTimePlanning = value / 1000; // Convert ms to seconds
-      } else if (timeType === 'user') {
-        fieldUpdates.activeTimeUser = value / 1000; // Convert ms to seconds
-      }
-    } else if (metricName === 'claude_code.lines_of_code.count') {
-      fieldUpdates.linesOfCode = value;
-    } else if (metricName === 'claude_code.hook.commands_blocked') {
-      fieldUpdates.commandsBlocked = value;
-    } else if (metricName === 'claude_code.hook.git_failures') {
-      fieldUpdates.gitFailures = value;
-    } else if (metricName === 'claude_code.tool.files_modified') {
-      fieldUpdates.filesModified = value;
-    } else if (metricName === 'claude_code.tool.calls') {
-      fieldUpdates.toolCalls = value;
-    }
+    // Parse metric into field updates using centralized utility function
+    const { fieldUpdates, byModelUpdates } = parseMetricToFieldUpdates(metricName, value, attributes);
 
     // Upsert bucket (increment values)
     await r.db('metrics').table('metric_buckets')
@@ -684,48 +896,8 @@ async function updateAggregatedStats(metricName, value, attributes) {
   try {
     const model = attributes.model || 'unknown';
 
-    // Determine which fields to update based on metric type
-    let fieldUpdates = {};
-    let byModelUpdates = {};
-
-    if (metricName === 'claude_code.token.usage') {
-      const tokenType = attributes.type;
-      if (tokenType === 'input') {
-        fieldUpdates.inputTokens = value;
-        byModelUpdates.inputTokens = value;
-      } else if (tokenType === 'output') {
-        fieldUpdates.outputTokens = value;
-        byModelUpdates.outputTokens = value;
-      } else if (tokenType === 'cacheRead') {
-        fieldUpdates.cacheReadTokens = value;
-        byModelUpdates.cacheReadTokens = value;
-      } else if (tokenType === 'cacheCreation') {
-        fieldUpdates.cacheCreationTokens = value;
-        byModelUpdates.cacheCreationTokens = value;
-      }
-    } else if (metricName === 'claude_code.cost.usage') {
-      fieldUpdates.totalCost = value;
-      byModelUpdates.cost = value;
-    } else if (metricName === 'claude_code.active_time.total') {
-      const timeType = attributes.type;
-      if (timeType === 'cli') {
-        fieldUpdates.activeTimeCLI = value / 1000; // Convert ms to seconds
-      } else if (timeType === 'planning') {
-        fieldUpdates.activeTimePlanning = value / 1000; // Convert ms to seconds
-      } else if (timeType === 'user') {
-        fieldUpdates.activeTimeUser = value / 1000; // Convert ms to seconds
-      }
-    } else if (metricName === 'claude_code.lines_of_code.count') {
-      fieldUpdates.linesOfCode = value;
-    } else if (metricName === 'claude_code.hook.commands_blocked') {
-      fieldUpdates.commandsBlocked = value;
-    } else if (metricName === 'claude_code.hook.git_failures') {
-      fieldUpdates.gitFailures = value;
-    } else if (metricName === 'claude_code.tool.files_modified') {
-      fieldUpdates.filesModified = value;
-    } else if (metricName === 'claude_code.tool.calls') {
-      fieldUpdates.toolCalls = value;
-    }
+    // Parse metric into field updates using centralized utility function
+    const { fieldUpdates, byModelUpdates } = parseMetricToFieldUpdates(metricName, value, attributes);
 
     // Update aggregated stats (increment all-time totals)
     await r.db('metrics').table('aggregated_stats')
@@ -770,7 +942,7 @@ async function updateAggregatedStats(metricName, value, attributes) {
 }
 
 // OTLP Metrics endpoint
-app.post('/v1/metrics', (req, res) => {
+app.post('/v1/metrics', validateOTLPPayload, (req, res) => {
   debugLog('📊 Received metrics data');
 
   try {
@@ -1177,7 +1349,7 @@ app.post('/v1/metrics', (req, res) => {
 });
 
 // OTLP Logs endpoint
-app.post('/v1/logs', (req, res) => {
+app.post('/v1/logs', validateOTLPPayload, (req, res) => {
   debugLog('📝 Received logs/events data');
 
   try {
@@ -1729,7 +1901,7 @@ app.get('/api/sessions/count', async (req, res) => {
 });
 
 // API endpoint to update usage limits
-app.post('/api/usage-limits', (req, res) => {
+app.post('/api/usage-limits', validateUsageLimits, (req, res) => {
   try {
     const { dailyTokenLimit, weeklyTokenLimit, dailyCostLimit, weeklyCostLimit, enabled } = req.body;
     
@@ -1791,7 +1963,7 @@ app.post('/api/reset-session', (req, res) => {
 });
 
 // Test endpoint to verify session key
-app.post('/api/test-claude-session', async (req, res) => {
+app.post('/api/test-claude-session', validateCookieString, async (req, res) => {
   try {
     const { sessionKey, userAgent } = req.body;
     
