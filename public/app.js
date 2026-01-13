@@ -619,6 +619,75 @@ function updateCostTimeline(history) {
 }
 
 // Update events list
+// Helper function: Format an attribute value based on its type and key
+function formatAttributeValue(key, value) {
+    if (typeof value === 'number' && key.includes('cost')) {
+        return `$${value.toFixed(4)}`;
+    } else if (typeof value === 'number' && key.includes('tokens')) {
+        return value.toLocaleString();
+    } else if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+    return value;
+}
+
+// Helper function: Extract and format attribute lines from an event
+function extractAttributeLines(event) {
+    const lines = [];
+
+    if (event.attributes) {
+        for (const [key, value] of Object.entries(event.attributes)) {
+            const formattedValue = formatAttributeValue(key, value);
+            lines.push(`${key}: ${formattedValue}`);
+        }
+    }
+
+    // If no attributes, use body
+    if (lines.length === 0) {
+        lines.push(event.body || 'No data');
+    }
+
+    return lines;
+}
+
+// Helper function: Render a single event item
+function renderEventItem(event) {
+    const attributeLines = extractAttributeLines(event);
+    const hasMoreThanTwoLines = attributeLines.length > 2;
+    const previewLines = attributeLines.slice(0, 2);
+    const remainingLines = attributeLines.slice(2);
+
+    const severityBadge = (event.severity && event.severity !== 'INFO')
+        ? `<span class="severity-badge severity-${escapeHtml(event.severity).toLowerCase()}">${escapeHtml(event.severity)}</span>`
+        : '';
+
+    const expandSection = hasMoreThanTwoLines ? `
+        <div class="event-body-full" style="display: none;">
+            ${remainingLines.map(line => `<div class="event-line">${escapeHtml(line)}</div>`).join('')}
+        </div>
+        <button class="event-expand-btn" onclick="toggleEventExpand(this)">
+            <span class="expand-icon">▼</span> Expand
+        </button>
+    ` : '';
+
+    return `
+        <div class="event-item">
+            <div class="event-header">
+                <span class="event-type">${escapeHtml(event.type)}</span>
+                ${severityBadge}
+                <span class="event-time">${formatRelativeTime(event.timestamp)}</span>
+            </div>
+            <div class="event-body">
+                <div class="event-body-preview">
+                    ${previewLines.map(line => `<div class="event-line">${escapeHtml(line)}</div>`).join('')}
+                </div>
+                ${expandSection}
+            </div>
+        </div>
+    `;
+}
+
+// Main function: Update events list - now much simpler with helper functions
 function updateEvents(eventsData) {
     const eventsList = document.getElementById('events-list');
 
@@ -627,56 +696,7 @@ function updateEvents(eventsData) {
         return;
     }
 
-    eventsList.innerHTML = eventsData.events.map((event, index) => {
-        // Format attributes as lines
-        const attributeLines = [];
-        if (event.attributes) {
-            for (const [key, value] of Object.entries(event.attributes)) {
-                // Format value based on type
-                let formattedValue = value;
-                if (typeof value === 'number' && key.includes('cost')) {
-                    formattedValue = `$${value.toFixed(4)}`;
-                } else if (typeof value === 'number' && key.includes('tokens')) {
-                    formattedValue = value.toLocaleString();
-                } else if (typeof value === 'object') {
-                    formattedValue = JSON.stringify(value);
-                }
-                attributeLines.push(`${key}: ${formattedValue}`);
-            }
-        }
-
-        // If no attributes, use body
-        if (attributeLines.length === 0) {
-            attributeLines.push(event.body || 'No data');
-        }
-
-        const hasMoreThanTwoLines = attributeLines.length > 2;
-        const previewLines = attributeLines.slice(0, 2);
-        const remainingLines = attributeLines.slice(2);
-
-        return `
-            <div class="event-item">
-                <div class="event-header">
-                    <span class="event-type">${escapeHtml(event.type)}</span>
-                    ${event.severity && event.severity !== 'INFO' ? `<span class="severity-badge severity-${escapeHtml(event.severity).toLowerCase()}">${escapeHtml(event.severity)}</span>` : ''}
-                    <span class="event-time">${formatRelativeTime(event.timestamp)}</span>
-                </div>
-                <div class="event-body">
-                    <div class="event-body-preview">
-                        ${previewLines.map(line => `<div class="event-line">${escapeHtml(line)}</div>`).join('')}
-                    </div>
-                    ${hasMoreThanTwoLines ? `
-                        <div class="event-body-full" style="display: none;">
-                            ${remainingLines.map(line => `<div class="event-line">${escapeHtml(line)}</div>`).join('')}
-                        </div>
-                        <button class="event-expand-btn" onclick="toggleEventExpand(this)">
-                            <span class="expand-icon">▼</span> Expand
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
+    eventsList.innerHTML = eventsData.events.map(renderEventItem).join('');
 }
 
 // Toggle expand/collapse for event body

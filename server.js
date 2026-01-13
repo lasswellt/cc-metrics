@@ -309,6 +309,29 @@ async function retryDatabaseOperation(operation, operationName, maxRetries = 3, 
   throw lastError;
 }
 
+/**
+ * Initialize model tracking structure for a storage object.
+ * Creates the standard per-model token and cost tracking structure.
+ *
+ * @param {Object} storageObject - The storage object to initialize (e.g., storage.aggregated)
+ * @param {string} model - Model name to initialize
+ */
+function initializeModelTracking(storageObject, model) {
+  if (!storageObject.byModel) {
+    storageObject.byModel = {};
+  }
+
+  if (!storageObject.byModel[model]) {
+    storageObject.byModel[model] = {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      cost: 0
+    };
+  }
+}
+
 // RethinkDB Database Setup (WebSocket connection)
 let dbConnection = null;
 
@@ -1007,57 +1030,17 @@ app.post('/v1/metrics', validateOTLPPayload, (req, res) => {
                 storage.sessions[sessionId].lastSeen = timestamp;
 
                 // Initialize model tracking for this session
-                if (!storage.sessions[sessionId].byModel[model]) {
-                  storage.sessions[sessionId].byModel[model] = {
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    cacheReadTokens: 0,
-                    cacheCreationTokens: 0,
-                    cost: 0
-                  };
-                }
+                initializeModelTracking(storage.sessions[sessionId], model);
               }
 
               // Check and reset stats if needed
               checkAndResetStats();
-              
+
               // Initialize model tracking if needed for all stat objects
-              if (!storage.aggregated.byModel[model]) {
-                storage.aggregated.byModel[model] = {
-                  inputTokens: 0,
-                  outputTokens: 0,
-                  cacheReadTokens: 0,
-                  cacheCreationTokens: 0,
-                  cost: 0
-                };
-              }
-              if (!storage.currentSession.byModel[model]) {
-                storage.currentSession.byModel[model] = {
-                  inputTokens: 0,
-                  outputTokens: 0,
-                  cacheReadTokens: 0,
-                  cacheCreationTokens: 0,
-                  cost: 0
-                };
-              }
-              if (!storage.dailyStats.byModel[model]) {
-                storage.dailyStats.byModel[model] = {
-                  inputTokens: 0,
-                  outputTokens: 0,
-                  cacheReadTokens: 0,
-                  cacheCreationTokens: 0,
-                  cost: 0
-                };
-              }
-              if (!storage.weeklyStats.byModel[model]) {
-                storage.weeklyStats.byModel[model] = {
-                  inputTokens: 0,
-                  outputTokens: 0,
-                  cacheReadTokens: 0,
-                  cacheCreationTokens: 0,
-                  cost: 0
-                };
-              }
+              initializeModelTracking(storage.aggregated, model);
+              initializeModelTracking(storage.currentSession, model);
+              initializeModelTracking(storage.dailyStats, model);
+              initializeModelTracking(storage.weeklyStats, model);
 
               // Helper function to update all stat objects
               const updateStats = (metric, value) => {
