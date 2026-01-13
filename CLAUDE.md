@@ -13,7 +13,6 @@ Claude Code Metrics Dashboard is a Node.js application that monitors Claude Code
 npm start                # Start the dashboard server
 npm run dev             # Same as start (alias)
 npm run debug           # Start with DEBUG=true for verbose logging
-npm run migrate         # Migrate existing SQLite data to RethinkDB
 node recalc-stats.js    # Recalculate aggregated stats from sessions
 ```
 
@@ -472,5 +471,4 @@ When modifying metrics processing:
 - `public/app.js` - Dashboard frontend (Chart.js, real-time updates via changefeed)
 - `public/index.html` - Dashboard HTML
 - `public/styles.css` - Dashboard styles
-- `migrate-sqlite-to-rethinkdb.js` - Migration utility for legacy SQLite data
 - `recalc-stats.js` - Standalone script to recalculate aggregated stats from sessions

@@ -775,24 +775,45 @@ footer code {
     border-radius: 8px;
     padding: 16px;
     text-align: center;
+    position: relative;
+    min-height: 120px;
+    overflow: hidden;
 }
 
 .usage-stat-label {
     font-size: 0.85rem;
     color: #a0a0a0;
     margin-bottom: 8px;
+    position: relative;
+    z-index: 1;
 }
 
 .usage-stat-value {
     font-size: 1.5rem;
     font-weight: 600;
     color: #4caf50;
+    position: relative;
+    z-index: 1;
 }
 
 .usage-stat-sublabel {
     font-size: 0.75rem;
     color: #808080;
     margin-top: 4px;
+    position: relative;
+    z-index: 1;
+}
+
+.usage-sparkline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 0;
+    display: block;
 }
 
 .usage-status {

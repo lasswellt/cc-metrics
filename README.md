@@ -4,7 +4,7 @@
 
 Track your Claude Code usage in real-time with this sleek, self-hosted dashboard! Monitor tokens, costs, sessions, and more with beautiful visualizations.
 
-![Dashboard Screenshot](dashboard-fixed.png)
+![Dashboard Screenshot](screenshot.png)
 
 ---
 
@@ -190,14 +190,6 @@ Get verbose logging to troubleshoot issues:
 npm run debug
 ```
 
-### Migrate from SQLite
-
-If you have data from an older SQLite version:
-
-```bash
-npm run migrate
-```
-
 ### Recalculate Stats
 
 If your aggregated stats seem off:
@@ -295,7 +287,6 @@ Web Dashboard (Port 3000)
 
 - `server.js` - Main application server
 - `public/` - Dashboard frontend (HTML/CSS/JS)
-- `migrate-sqlite-to-rethinkdb.js` - Migration utility
 - `recalc-stats.js` - Stats recalculation script
 - `CLAUDE.md` - Comprehensive documentation for Claude Code
 - `FIX-SUMMARY.md` - Details on the metrics aggregation fix

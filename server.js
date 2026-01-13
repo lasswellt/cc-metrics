@@ -125,6 +125,16 @@ async function initializeDatabase() {
       console.log('  ✅ Initialized aggregated_stats table');
     }
 
+    // Create claude_usage_history table for storing historical Claude.ai usage data
+    if (!tableList.includes('claude_usage_history')) {
+      await r.db('metrics').tableCreate('claude_usage_history').run(dbConnection);
+      console.log('  ✅ Created table: claude_usage_history');
+
+      // Create indexes for claude_usage_history table
+      await r.db('metrics').table('claude_usage_history').indexCreate('timestamp').run(dbConnection);
+      console.log('  ✅ Created indexes for claude_usage_history table');
+    }
+
     console.log('✅ Database schema initialized');
     return dbConnection;
   } catch (err) {
@@ -850,7 +860,7 @@ app.post('/v1/metrics', (req, res) => {
                 attributes
               });
 
-              // Persist to SQLite
+              // Persist to RethinkDB
               saveMetricToDB(timestamp, metricName, value, attributes);
 
               const model = attributes.model || 'unknown';
@@ -1266,7 +1276,7 @@ app.post('/v1/logs', (req, res) => {
               severity: log.severityText || 'INFO'
             });
 
-            // Persist to SQLite
+            // Persist to RethinkDB
             saveEventToDB(timestamp, eventType, body, attributes, log.severityText || 'INFO');
 
             // Update event counts
@@ -2197,6 +2207,25 @@ app.post('/api/claude-usage', async (req, res) => {
       rawData: data // Include raw data for debugging
     };
 
+    // Save usage data to history table for sparkline graphs
+    try {
+      await r.db('metrics').table('claude_usage_history').insert({
+        timestamp: usageData.lastUpdated,
+        fiveHourUtilization: usageData.fiveHour?.utilization || null,
+        sevenDayUtilization: usageData.sevenDay?.utilization || null,
+        sonnetUtilization: usageData.byModel?.sonnet?.utilization || null,
+        opusUtilization: usageData.byModel?.opus?.utilization || null,
+        rawData: data
+      }).run(dbConnection);
+
+      if (DEBUG) {
+        console.log('💾 Saved Claude usage to history table');
+      }
+    } catch (dbError) {
+      console.error('Error saving Claude usage history:', dbError);
+      // Don't fail the request if history save fails
+    }
+
     res.json({
       success: true,
       data: usageData,
@@ -2242,6 +2271,63 @@ app.post('/api/claude-usage', async (req, res) => {
     }
 
     res.json(errorResponse);
+  }
+});
+
+// GET endpoint to fetch historical Claude.ai usage data for sparklines
+app.get('/api/claude-usage/history', async (req, res) => {
+  try {
+    const { timeframe = '24h' } = req.query;
+
+    // Calculate cutoff time based on timeframe
+    const now = Date.now();
+    const timeframes = {
+      '1h': 60 * 60 * 1000,
+      '2h': 2 * 60 * 60 * 1000,
+      '3h': 3 * 60 * 60 * 1000,
+      '6h': 6 * 60 * 60 * 1000,
+      '24h': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000
+    };
+
+    const cutoffMs = timeframes[timeframe] || timeframes['24h'];
+    const cutoffTime = now - cutoffMs;
+
+    // Query historical data from database
+    const history = await r.db('metrics')
+      .table('claude_usage_history')
+      .filter(r.row('timestamp').ge(cutoffTime))
+      .orderBy('timestamp')
+      .run(dbConnection);
+
+    const historyArray = await history.toArray();
+
+    // Transform to frontend format
+    const formattedHistory = historyArray.map(record => ({
+      timestamp: record.timestamp,
+      fiveHour: record.fiveHourUtilization || 0,
+      sevenDay: record.sevenDayUtilization || 0,
+      sonnet: record.sonnetUtilization || 0,
+      opus: record.opusUtilization || 0
+    }));
+
+    res.json({
+      success: true,
+      data: formattedHistory,
+      count: formattedHistory.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching Claude usage history:', error);
+    res.status(500).json({
+      success: false,
+      data: [],
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to fetch usage history'
+      }
+    });
   }
 });
 
@@ -3112,6 +3198,67 @@ async function startBucketChangefeed() {
   }
 }
 
+// Cleanup inactive sessions periodically
+async function cleanupInactiveSessions() {
+  const now = Date.now();
+  const FIVE_MINUTES = 300000; // 5 minutes in milliseconds
+  let removedCount = 0;
+
+  // Check each session in the cache
+  for (const [sessionId, sessionData] of activeSessions.entries()) {
+    const timeSinceLastSeen = now - sessionData.lastSeen;
+    
+    if (timeSinceLastSeen > FIVE_MINUTES) {
+      // Remove from cache
+      activeSessions.delete(sessionId);
+      removedCount++;
+
+      // Broadcast removal to all connected clients
+      const message = {
+        type: 'session_update',
+        action: 'remove',
+        timestamp: now,
+        data: { sessionId }
+      };
+
+      const messageStr = JSON.stringify(message);
+      connectedClients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          try {
+            client.send(messageStr);
+          } catch (error) {
+            console.error('Error broadcasting session removal:', error);
+            connectedClients.delete(client);
+          }
+        }
+      });
+    }
+  }
+
+  if (removedCount > 0) {
+    console.log(`🧹 Cleaned up ${removedCount} inactive session(s)`);
+  }
+}
+
+// Clean up old Claude usage history (keep 30 days)
+async function cleanupClaudeUsageHistory() {
+  const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+
+  try {
+    const result = await r.db('metrics')
+      .table('claude_usage_history')
+      .filter(r.row('timestamp').lt(thirtyDaysAgo))
+      .delete()
+      .run(dbConnection);
+
+    if (result.deleted > 0) {
+      console.log(`🗑️  Cleaned up ${result.deleted} old Claude usage records`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up Claude usage history:', error);
+  }
+}
+
 async function startMetricChangefeeds() {
   await Promise.all([
     startAggregatedChangefeed(),
@@ -3156,6 +3303,16 @@ async function startServer() {
       setInterval(() => {
         checkAndResetStats();
       }, 3600000); // 1 hour
+
+      // Cleanup inactive sessions every minute
+      setInterval(() => {
+        cleanupInactiveSessions();
+      }, 60000); // 1 minute
+
+      // Cleanup old Claude usage history every day
+      setInterval(() => {
+        cleanupClaudeUsageHistory();
+      }, 86400000); // 24 hours
     });
   } catch (err) {
     console.error('Failed to start server:', err);

@@ -214,6 +214,93 @@ const costTimeline = new Chart(document.getElementById('cost-timeline'), {
     }
 });
 
+// ============================================================================
+// Claude.ai Usage Sparklines
+// ============================================================================
+
+const claudeUsageSparklines = {
+    fiveHour: null,
+    sevenDay: null,
+    sonnet: null
+};
+
+function createUsageSparkline(canvasId, color) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+        console.warn(`Canvas element ${canvasId} not found`);
+        return null;
+    }
+
+    // Extract RGB from hex color and create transparent background
+    const hexToRgb = (hex) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
+    };
+
+    const rgb = hexToRgb(color);
+
+    // Create gradient that fills from bottom to top
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)` : 'rgba(76, 175, 80, 0.3)');
+    gradient.addColorStop(1, rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)` : 'rgba(76, 175, 80, 0.05)');
+
+    return new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                borderColor: color,
+                backgroundColor: gradient,
+                borderWidth: 2.5,
+                pointRadius: 0,
+                tension: 0.3,
+                fill: 'origin'
+            }]
+        },
+        options: {
+            responsive: false,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false },
+                filler: {
+                    propagate: false
+                }
+            },
+            scales: {
+                x: {
+                    display: false,
+                    grid: { display: false }
+                },
+                y: {
+                    display: false,
+                    min: 0,
+                    max: 100,
+                    beginAtZero: true,
+                    grace: 0,
+                    grid: { display: false }
+                }
+            },
+            layout: {
+                padding: 0
+            }
+        }
+    });
+}
+
+// Initialize Claude.ai usage sparklines (will be created after DOM is ready)
+function initializeClaudeSparklines() {
+    claudeUsageSparklines.fiveHour = createUsageSparkline('five-hour-sparkline', '#4caf50');
+    claudeUsageSparklines.sevenDay = createUsageSparkline('seven-day-sparkline', '#2196f3');
+    claudeUsageSparklines.sonnet = createUsageSparkline('sonnet-sparkline', '#ff9800');
+}
+
 // Format number with K/M suffix
 function formatNumber(num) {
     if (num >= 1000000) {
@@ -756,11 +843,6 @@ function renderSessions() {
                         <div class="aggregate-column-divider"></div>
                         <div class="aggregate-column-value">$${session.totalCost}</div>
                     </div>
-                    <div class="session-aggregate-column">
-                        <div class="aggregate-column-header">Common Mode</div>
-                        <div class="aggregate-column-divider"></div>
-                        <div class="aggregate-column-value">${formatNumber(session.commonModeCount || 0)}</div>
-                    </div>
                 </div>
             </div>
         `;
@@ -1173,6 +1255,9 @@ class MetricsDashboard {
     this.currentTimeframe = newTimeframe;
     saveDataTimeframe(newTimeframe);
     this.performUIUpdate();  // Instant update, no network request
+
+    // Update Claude usage sparklines when timeframe changes
+    fetchClaudeUsageHistory(newTimeframe);
   }
 
   cleanupOldBuckets() {
@@ -1345,6 +1430,10 @@ async function fetchClaudeUsage() {
         if (result.success) {
             updateClaudeUsageDisplay(result.data);
             updateClaudeStatus('Connected', 'active');
+
+            // Fetch and update historical sparklines using current timeframe
+            const currentTimeframe = loadDataTimeframe();
+            await fetchClaudeUsageHistory(currentTimeframe);
         } else {
             handleClaudeError(result.error);
         }
@@ -1372,6 +1461,73 @@ function formatTimeRemaining(ms) {
   } else {
     return `${seconds}s`;
   }
+}
+
+// Fetch Claude.ai usage history for sparklines
+async function fetchClaudeUsageHistory(timeframe) {
+    try {
+        // If 'all' timeframe is selected, show last 7 days for sparklines
+        // Otherwise use the same timeframe as the main dashboard
+        const sparklineTimeframe = timeframe === 'all' ? '7d' : timeframe;
+
+        const response = await fetch(`/api/claude-usage/history?timeframe=${sparklineTimeframe}`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+            updateClaudeUsageSparklines(result.data);
+        }
+    } catch (error) {
+        console.error('Error fetching Claude usage history:', error);
+    }
+}
+
+// Update sparklines with historical data
+function updateClaudeUsageSparklines(historyData) {
+    if (!historyData || historyData.length === 0) {
+        // Clear sparklines if no data
+        if (claudeUsageSparklines.fiveHour) {
+            claudeUsageSparklines.fiveHour.data.labels = [];
+            claudeUsageSparklines.fiveHour.data.datasets[0].data = [];
+            claudeUsageSparklines.fiveHour.update('none');
+        }
+        if (claudeUsageSparklines.sevenDay) {
+            claudeUsageSparklines.sevenDay.data.labels = [];
+            claudeUsageSparklines.sevenDay.data.datasets[0].data = [];
+            claudeUsageSparklines.sevenDay.update('none');
+        }
+        if (claudeUsageSparklines.sonnet) {
+            claudeUsageSparklines.sonnet.data.labels = [];
+            claudeUsageSparklines.sonnet.data.datasets[0].data = [];
+            claudeUsageSparklines.sonnet.update('none');
+        }
+        return;
+    }
+
+    const timestamps = historyData.map(d => new Date(d.timestamp));
+
+    // Update 5-hour sparkline
+    if (claudeUsageSparklines.fiveHour) {
+        claudeUsageSparklines.fiveHour.data.labels = timestamps;
+        claudeUsageSparklines.fiveHour.data.datasets[0].data =
+            historyData.map(d => d.fiveHour);
+        claudeUsageSparklines.fiveHour.update('none');
+    }
+
+    // Update 7-day sparkline
+    if (claudeUsageSparklines.sevenDay) {
+        claudeUsageSparklines.sevenDay.data.labels = timestamps;
+        claudeUsageSparklines.sevenDay.data.datasets[0].data =
+            historyData.map(d => d.sevenDay);
+        claudeUsageSparklines.sevenDay.update('none');
+    }
+
+    // Update Sonnet sparkline
+    if (claudeUsageSparklines.sonnet) {
+        claudeUsageSparklines.sonnet.data.labels = timestamps;
+        claudeUsageSparklines.sonnet.data.datasets[0].data =
+            historyData.map(d => d.sonnet || 0);
+        claudeUsageSparklines.sonnet.update('none');
+    }
 }
 
 // Update Claude.ai usage display
@@ -1584,11 +1740,18 @@ let claudeUsagePollingId = null;
 
 // Initialize Claude.ai usage polling
 function initClaudeUsage() {
+    // Initialize sparklines (canvas elements should be in DOM by now)
+    initializeClaudeSparklines();
+
     const sessionKey = loadSessionKey();
 
     if (sessionKey) {
         // Fetch immediately
         fetchClaudeUsage();
+
+        // Also fetch history for sparklines using current timeframe
+        const currentTimeframe = loadDataTimeframe();
+        fetchClaudeUsageHistory(currentTimeframe);
 
         // Get saved polling interval (default 30 seconds)
         const pollingInterval = loadPollingInterval();

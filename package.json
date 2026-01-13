@@ -6,8 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "debug": "DEBUG=true node server.js",
-    "migrate": "node migrate-sqlite-to-rethinkdb.js"
+    "debug": "DEBUG=true node server.js"
   },
   "keywords": [
     "claude-code",
@@ -23,7 +22,6 @@
     "express": "^4.18.2",
     "node-libcurl-ja3": "^5.2.1",
     "rethinkdb": "^2.4.2",
-    "sqlite3": "^5.1.7",
     "ws": "^8.19.0"
   }
 }

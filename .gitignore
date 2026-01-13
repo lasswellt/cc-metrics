@@ -3,10 +3,6 @@ npm-debug.log
 .DS_Store
 .env
 
-# Database files
-metrics.db
-metrics.db-journal
-
 # Log files
 server.log
 *.log
