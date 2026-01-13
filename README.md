@@ -19,6 +19,7 @@ This dashboard taps into Claude Code's built-in OpenTelemetry metrics to give yo
 - 💾 **Persistent storage** - All your data saved in RethinkDB
 - 🔄 **Real-time updates** - WebSocket-powered live data streaming
 - 📱 **Session tracking** - Monitor individual coding sessions across different terminals
+- ⚡ **Automatic setup** - Database initializes automatically on first run with clear error messages
 
 ### Why Would I Want This?
 
@@ -31,6 +32,8 @@ This dashboard taps into Claude Code's built-in OpenTelemetry metrics to give yo
 ---
 
 ## 🚀 Quick Start
+
+Get up and running in **under 5 minutes**! The database initializes automatically—no manual setup needed.
 
 ### Prerequisites
 
@@ -92,8 +95,15 @@ npm install
 npm start
 ```
 
-You should see:
+The dashboard will **automatically initialize the database** on first run. You should see:
 ```
+🔌 Connecting to RethinkDB at localhost:28015...
+📦 Connected to RethinkDB via WebSocket (native RethinkDB protocol)
+  ✅ Created database: metrics
+  ✅ Created table: metrics
+  ... (additional tables and indexes)
+✅ Database schema initialized
+
 🚀 Claude Code Metrics Dashboard Started!
 
 📡 OTLP Receiver:  http://localhost:4318
@@ -101,6 +111,8 @@ You should see:
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser!
+
+> **Note:** The database setup happens automatically—no manual configuration needed!
 
 ### 5. Configure Claude Code
 
@@ -182,6 +194,20 @@ The dashboard uses RethinkDB changefeeds for instant updates. No need to refresh
 
 ## 🛠️ Advanced Usage
 
+### Database Setup
+
+The database initializes automatically on first server start. For manual initialization or troubleshooting:
+
+```bash
+npm run setup
+```
+
+This is useful for:
+- Verifying database connectivity before starting the server
+- CI/CD pipelines
+- Troubleshooting database issues
+- Resetting database schema (idempotent, safe to run multiple times)
+
 ### Debug Mode
 
 Get verbose logging to troubleshoot issues:
@@ -195,7 +221,7 @@ npm run debug
 If your aggregated stats seem off:
 
 ```bash
-node recalc-stats.js
+npm run recalc-stats
 ```
 
 ### Custom Ports
@@ -222,14 +248,26 @@ export RETHINKDB_PORT=28015
 
 ### "Can't connect to RethinkDB"
 
-Make sure RethinkDB is running:
-```bash
-# Check if running
-ps aux | grep rethinkdb
-
-# Start if not running
-rethinkdb
+If you see:
 ```
+❌ ERROR: Cannot connect to RethinkDB
+RethinkDB is not running. Please start it first:
+```
+
+The server now provides clear error messages with exact commands to fix the issue. Simply follow the on-screen instructions to start RethinkDB:
+
+```bash
+# Option 1: Local installation
+rethinkdb
+
+# Option 2: Docker
+docker run -d --name rethinkdb -p 28015:28015 -p 8080:8080 rethinkdb
+
+# Option 3: Start existing Docker container
+docker start rethinkdb
+```
+
+Then restart the server with `npm start`.
 
 ### "No data appearing in dashboard"
 
@@ -285,11 +323,14 @@ Web Dashboard (Port 3000)
 
 ## 📦 What's Included
 
-- `server.js` - Main application server
+- `server.js` - Main application server with enhanced error handling
+- `db-setup.js` - Reusable database initialization module
+- `setup-db.js` - Standalone database setup script
+- `recalc-stats.js` - Stats recalculation utility
 - `public/` - Dashboard frontend (HTML/CSS/JS)
-- `recalc-stats.js` - Stats recalculation script
 - `CLAUDE.md` - Comprehensive documentation for Claude Code
 - `FIX-SUMMARY.md` - Details on the metrics aggregation fix
+- `package.json` - NPM scripts including `setup` and `recalc-stats`
 
 ---
 
