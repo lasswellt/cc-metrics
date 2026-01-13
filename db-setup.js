@@ -36,9 +36,21 @@ async function setupDatabase(connection) {
       // Create indexes for metrics table
       await r.db('metrics').table('metrics').indexCreate('timestamp').run(connection);
       await r.db('metrics').table('metrics').indexCreate('name').run(connection);
-      console.log('  ✅ Created indexes for metrics table');
+
+      // Create compound index for time-range queries filtering by metric name
+      await r.db('metrics').table('metrics').indexCreate('timestamp_name', [r.row('timestamp'), r.row('name')]).run(connection);
+
+      console.log('  ✅ Created indexes for metrics table (including compound index)');
     } else {
       console.log('  ℹ️  Table already exists: metrics');
+
+      // Check and create compound index if it doesn't exist
+      const metricsIndexes = await r.db('metrics').table('metrics').indexList().run(connection);
+      if (!metricsIndexes.includes('timestamp_name')) {
+        await r.db('metrics').table('metrics').indexCreate('timestamp_name', [r.row('timestamp'), r.row('name')]).run(connection);
+        await r.db('metrics').table('metrics').indexWait('timestamp_name').run(connection);
+        console.log('  ✅ Created compound index timestamp_name for metrics table');
+      }
     }
 
     // Events table
@@ -63,9 +75,21 @@ async function setupDatabase(connection) {
       await r.db('metrics').table('sessions').indexCreate('sessionId').run(connection);
       await r.db('metrics').table('sessions').indexCreate('lastSeen').run(connection);
       await r.db('metrics').table('sessions').indexCreate('terminalType').run(connection);
-      console.log('  ✅ Created indexes for sessions table');
+
+      // Create compound index for queries filtering by lastSeen AND terminalType
+      await r.db('metrics').table('sessions').indexCreate('lastSeen_terminalType', [r.row('lastSeen'), r.row('terminalType')]).run(connection);
+
+      console.log('  ✅ Created indexes for sessions table (including compound index)');
     } else {
       console.log('  ℹ️  Table already exists: sessions');
+
+      // Check and create compound index if it doesn't exist
+      const sessionsIndexes = await r.db('metrics').table('sessions').indexList().run(connection);
+      if (!sessionsIndexes.includes('lastSeen_terminalType')) {
+        await r.db('metrics').table('sessions').indexCreate('lastSeen_terminalType', [r.row('lastSeen'), r.row('terminalType')]).run(connection);
+        await r.db('metrics').table('sessions').indexWait('lastSeen_terminalType').run(connection);
+        console.log('  ✅ Created compound index lastSeen_terminalType for sessions table');
+      }
     }
 
     // Metric buckets table

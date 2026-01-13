@@ -747,6 +747,91 @@ function handleSessionUpdate(action, data) {
 }
 
 // Render terminal sessions from sessionsMap
+// Helper function: Calculate total tokens for a model's data
+function calculateModelTotalTokens(modelData) {
+    return (modelData.inputTokens || 0) +
+           (modelData.outputTokens || 0) +
+           (modelData.cacheReadTokens || 0) +
+           (modelData.cacheCreationTokens || 0);
+}
+
+// Helper function: Filter and sort models by total tokens
+function filterAndSortModelsByTokens(byModel) {
+    if (!byModel || Object.keys(byModel).length === 0) {
+        return [];
+    }
+
+    return Object.entries(byModel)
+        .filter(([_, data]) => calculateModelTotalTokens(data) > 0)
+        .sort((a, b) => calculateModelTotalTokens(b[1]) - calculateModelTotalTokens(a[1]));
+}
+
+// Helper function: Render a single model column
+function renderModelColumn(model, data) {
+    const input = data.inputTokens || 0;
+    const output = data.outputTokens || 0;
+    const total = calculateModelTotalTokens(data);
+
+    return `
+        <div class="session-model-column">
+            <div class="model-column-header">${formatModelName(model)}</div>
+            <div class="model-column-divider"></div>
+            <div class="model-column-value">
+                ${formatNumber(input)}/${formatNumber(output)}/${formatNumber(total)}
+            </div>
+        </div>
+    `;
+}
+
+// Helper function: Render a single session card
+function renderSessionCard(session) {
+    const shortId = session.sessionId.split('-')[0];
+    const statusClass = session.isActive ? 'active' : '';
+    const cardClass = session.isActive ? 'session-card active' : 'session-card';
+
+    const modelsWithData = filterAndSortModelsByTokens(session.byModel);
+    const modelColumnsHtml = modelsWithData
+        .map(([model, data]) => renderModelColumn(model, data))
+        .join('');
+
+    return `
+        <div class="${cardClass}">
+            <div class="session-header">
+                <div class="session-title">
+                    <div class="session-status ${statusClass}"></div>
+                    <div>
+                        <div class="session-terminal">${session.terminalType || 'Unknown Terminal'}</div>
+                        <div class="session-id">${shortId}</div>
+                    </div>
+                </div>
+                <div class="session-info">
+                    <span>Duration: ${formatSessionDuration(session.duration)}</span>
+                    <span>Last seen: ${formatRelativeTime(session.lastSeen)}</span>
+                </div>
+            </div>
+            <div class="session-metrics-row">
+                ${modelColumnsHtml}
+                <div class="session-aggregate-column">
+                    <div class="aggregate-column-header">Active Time</div>
+                    <div class="aggregate-column-divider"></div>
+                    <div class="aggregate-column-value">${session.totalActiveTime}</div>
+                </div>
+                <div class="session-aggregate-column">
+                    <div class="aggregate-column-header">Lines of Code</div>
+                    <div class="aggregate-column-divider"></div>
+                    <div class="aggregate-column-value">${formatNumber(session.linesOfCode)}</div>
+                </div>
+                <div class="session-aggregate-column">
+                    <div class="aggregate-column-header">Cost</div>
+                    <div class="aggregate-column-divider"></div>
+                    <div class="aggregate-column-value">$${session.totalCost}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Main render function - now much simpler with helper functions
 function renderSessions() {
     const sessionsSection = document.getElementById('sessions-section');
     const sessionsList = document.getElementById('sessions-list');
@@ -760,93 +845,15 @@ function renderSessions() {
         return;
     }
 
-    // Show section
+    // Show section and update stats
     sessionsSection.style.display = 'block';
-
-    // Calculate stats
     const activeSessions = sessions.filter(s => s.isActive).length;
     sessionsTotal.textContent = `${sessions.length} total`;
     sessionsActive.textContent = `${activeSessions} active`;
 
-    // Sort by lastSeen (most recent first)
+    // Sort by lastSeen (most recent first) and render
     sessions.sort((a, b) => b.lastSeen - a.lastSeen);
-
-    // Render session cards with per-model breakdown
-    sessionsList.innerHTML = sessions.map(session => {
-        const shortId = session.sessionId.split('-')[0];
-        const statusClass = session.isActive ? 'active' : '';
-        const cardClass = session.isActive ? 'session-card active' : 'session-card';
-
-        // Process and sort models by total tokens
-        const modelsWithData = session.byModel && Object.keys(session.byModel).length > 0
-            ? Object.entries(session.byModel)
-                .filter(([model, data]) => {
-                    const total = (data.inputTokens || 0) + (data.outputTokens || 0) +
-                                 (data.cacheReadTokens || 0) + (data.cacheCreationTokens || 0);
-                    return total > 0;
-                })
-                .sort((a, b) => {
-                    const totalA = (a[1].inputTokens || 0) + (a[1].outputTokens || 0) +
-                                  (a[1].cacheReadTokens || 0) + (a[1].cacheCreationTokens || 0);
-                    const totalB = (b[1].inputTokens || 0) + (b[1].outputTokens || 0) +
-                                  (b[1].cacheReadTokens || 0) + (b[1].cacheCreationTokens || 0);
-                    return totalB - totalA;
-                })
-            : [];
-
-        // Build model columns HTML
-        const modelColumnsHtml = modelsWithData.map(([model, data]) => {
-            const input = data.inputTokens || 0;
-            const output = data.outputTokens || 0;
-            const total = input + output + (data.cacheReadTokens || 0) + (data.cacheCreationTokens || 0);
-
-            return `
-                <div class="session-model-column">
-                    <div class="model-column-header">${formatModelName(model)}</div>
-                    <div class="model-column-divider"></div>
-                    <div class="model-column-value">
-                        ${formatNumber(input)}/${formatNumber(output)}/${formatNumber(total)}
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        return `
-            <div class="${cardClass}">
-                <div class="session-header">
-                    <div class="session-title">
-                        <div class="session-status ${statusClass}"></div>
-                        <div>
-                            <div class="session-terminal">${session.terminalType || 'Unknown Terminal'}</div>
-                            <div class="session-id">${shortId}</div>
-                        </div>
-                    </div>
-                    <div class="session-info">
-                        <span>Duration: ${formatSessionDuration(session.duration)}</span>
-                        <span>Last seen: ${formatRelativeTime(session.lastSeen)}</span>
-                    </div>
-                </div>
-                <div class="session-metrics-row">
-                    ${modelColumnsHtml}
-                    <div class="session-aggregate-column">
-                        <div class="aggregate-column-header">Active Time</div>
-                        <div class="aggregate-column-divider"></div>
-                        <div class="aggregate-column-value">${session.totalActiveTime}</div>
-                    </div>
-                    <div class="session-aggregate-column">
-                        <div class="aggregate-column-header">Lines of Code</div>
-                        <div class="aggregate-column-divider"></div>
-                        <div class="aggregate-column-value">${formatNumber(session.linesOfCode)}</div>
-                    </div>
-                    <div class="session-aggregate-column">
-                        <div class="aggregate-column-header">Cost</div>
-                        <div class="aggregate-column-divider"></div>
-                        <div class="aggregate-column-value">$${session.totalCost}</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
+    sessionsList.innerHTML = sessions.map(renderSessionCard).join('');
 }
 
 // OLD updateSessions function - kept for backward compatibility during transition
