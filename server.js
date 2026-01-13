@@ -1945,6 +1945,91 @@ function parseCookieString(cookieString) {
   return cookies;
 }
 
+// Helper function to calculate utilization rate from historical data points
+function calculateUtilizationRate(dataPoints) {
+  // Sort by timestamp
+  dataPoints.sort((a, b) => a.timestamp - b.timestamp);
+
+  // Use simple approach: compare first and last
+  const first = dataPoints[0];
+  const last = dataPoints[dataPoints.length - 1];
+
+  const utilizationChange = last.utilization - first.utilization;
+  const timeChangeHours = (last.timestamp - first.timestamp) / 3600000;
+
+  return timeChangeHours > 0 ? utilizationChange / timeChangeHours : 0;
+}
+
+// Helper function to calculate usage projection (time to 100%)
+async function calculateUsageProjection(metricField, currentUtilization, resetsIn) {
+  if (!dbConnection) {
+    return { available: false, reason: 'no_db_connection' };
+  }
+
+  // Fetch last 24 hours of historical data
+  const now = Date.now();
+  const cutoffTime = now - (24 * 60 * 60 * 1000);
+
+  try {
+    const history = await r.db('metrics')
+      .table('claude_usage_history')
+      .filter(r.row('timestamp').ge(cutoffTime))
+      .orderBy('timestamp')
+      .run(dbConnection);
+
+    const historyArray = await history.toArray();
+
+    // Filter for the specific metric and remove nulls
+    const dataPoints = historyArray
+      .map(h => ({
+        timestamp: h.timestamp,
+        utilization: h[metricField]
+      }))
+      .filter(p => p.utilization != null);
+
+    // Need at least 3 data points for meaningful projection
+    if (dataPoints.length < 3) {
+      return {
+        available: false,
+        reason: 'insufficient_data',
+        dataPointCount: dataPoints.length
+      };
+    }
+
+    // Calculate hourly rate
+    const rate = calculateUtilizationRate(dataPoints);
+
+    // Time to 100%
+    const remaining = 100 - currentUtilization;
+    const hoursTo100 = rate > 0 ? remaining / rate : Infinity;
+    const msTo100 = hoursTo100 * 3600000;
+
+    // Determine severity based on thresholds
+    let severity = 'safe';
+    if (rate > 0 && msTo100 < resetsIn) {
+      if (msTo100 < 12 * 3600000) {
+        severity = 'critical';  // < 12 hours
+      } else if (msTo100 < 72 * 3600000) {
+        severity = 'warning';   // 12-72 hours
+      }
+    }
+
+    return {
+      available: true,
+      currentUtilization: currentUtilization,
+      hourlyRate: parseFloat(rate.toFixed(3)),
+      msTo100: msTo100,
+      msToReset: resetsIn,
+      willHitLimit: rate > 0 && msTo100 < resetsIn,
+      severity: severity,
+      safetyMargin: ((resetsIn - msTo100) / 3600000).toFixed(1) // hours
+    };
+  } catch (error) {
+    console.error('Error calculating usage projection:', error);
+    return { available: false, reason: 'calculation_error' };
+  }
+}
+
 // Helper function to make requests with curl-impersonate (bypasses Cloudflare)
 function curlImpersonate(url, options = {}) {
   return new Promise((resolve, reject) => {
@@ -2204,7 +2289,22 @@ app.post('/api/claude-usage', async (req, res) => {
       },
       
       lastUpdated: Date.now(),
-      rawData: data // Include raw data for debugging
+      rawData: data, // Include raw data for debugging
+
+      // Add projections (calculate time to 100% based on historical data)
+      projections: {
+        sevenDay: data.seven_day ? await calculateUsageProjection(
+          'sevenDayUtilization',
+          data.seven_day.utilization || 0,
+          data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() - Date.now() : 0
+        ) : { available: false, reason: 'no_data' },
+
+        fiveHour: data.five_hour ? await calculateUsageProjection(
+          'fiveHourUtilization',
+          data.five_hour.utilization || 0,
+          data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() - Date.now() : 0
+        ) : { available: false, reason: 'no_data' }
+      }
     };
 
     // Save usage data to history table for sparkline graphs

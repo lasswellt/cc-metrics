@@ -1530,6 +1530,53 @@ function updateClaudeUsageSparklines(historyData) {
     }
 }
 
+// Helper function to format and display usage projection
+function updateProjectionDisplay(elementId, projection) {
+    const element = document.getElementById(elementId);
+
+    if (!projection || !projection.available) {
+        element.textContent = 'Insufficient data';
+        element.className = 'usage-stat-projection neutral';
+        return;
+    }
+
+    const { hourlyRate, msTo100, willHitLimit, severity } = projection;
+
+    // Handle edge cases
+    if (hourlyRate <= 0) {
+        element.textContent = `✓ Stable (${Math.abs(hourlyRate).toFixed(2)}%/hr)`;
+        element.className = 'usage-stat-projection safe';
+        return;
+    }
+
+    if (!willHitLimit) {
+        element.textContent = `✓ Safe (+${hourlyRate.toFixed(2)}%/hr)`;
+        element.className = 'usage-stat-projection safe';
+        return;
+    }
+
+    // Will hit limit before reset - show time and rate
+    const hoursTo100 = Math.floor(msTo100 / 3600000);
+    const minutesTo100 = Math.floor((msTo100 % 3600000) / 60000);
+
+    // Format time display
+    let timeDisplay;
+    if (hoursTo100 >= 24) {
+        const days = Math.floor(hoursTo100 / 24);
+        const remainingHours = hoursTo100 % 24;
+        timeDisplay = `${days}d ${remainingHours}h`;
+    } else if (hoursTo100 > 0) {
+        timeDisplay = `${hoursTo100}h ${minutesTo100}m`;
+    } else {
+        timeDisplay = `${minutesTo100}m`;
+    }
+
+    // Apply user-defined thresholds: critical < 12h, warning 12-72h
+    const icon = severity === 'critical' ? '⚠' : '~';
+    element.textContent = `${icon} ${timeDisplay} to 100% (+${hourlyRate.toFixed(2)}%/hr)`;
+    element.className = `usage-stat-projection ${severity}`;
+}
+
 // Update Claude.ai usage display
 function updateClaudeUsageDisplay(data) {
     // Show the usage section
@@ -1538,21 +1585,29 @@ function updateClaudeUsageDisplay(data) {
     // Update 5-hour usage
     if (data.fiveHour) {
         document.getElementById('account-five-hour').textContent = `${data.fiveHour.utilization}%`;
-        document.getElementById('account-five-hour-reset').textContent = 
+        document.getElementById('account-five-hour-reset').textContent =
             `Resets in ${formatTimeRemaining(data.fiveHour.resetsIn)}`;
+
+        // Update projection display
+        updateProjectionDisplay('account-five-hour-projection', data.projections?.fiveHour);
     } else {
         document.getElementById('account-five-hour').textContent = 'N/A';
         document.getElementById('account-five-hour-reset').textContent = '';
+        document.getElementById('account-five-hour-projection').textContent = '';
     }
 
     // Update 7-day usage
     if (data.sevenDay) {
         document.getElementById('account-seven-day').textContent = `${data.sevenDay.utilization}%`;
-        document.getElementById('account-seven-day-reset').textContent = 
+        document.getElementById('account-seven-day-reset').textContent =
             `Resets in ${formatTimeRemaining(data.sevenDay.resetsIn)}`;
+
+        // Update projection display
+        updateProjectionDisplay('account-seven-day-projection', data.projections?.sevenDay);
     } else {
         document.getElementById('account-seven-day').textContent = 'N/A';
         document.getElementById('account-seven-day-reset').textContent = '';
+        document.getElementById('account-seven-day-projection').textContent = '';
     }
 
     // Update Sonnet model usage
