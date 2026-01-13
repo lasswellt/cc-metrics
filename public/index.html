@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Metrics Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Claude Code Metrics Dashboard</h1>
+            <div class="header-right">
+                <button id="refresh-btn" class="settings-btn" title="Refresh data">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                    </svg>
+                </button>
+                <button id="settings-btn" class="settings-btn" title="Configure Claude.ai">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="4" y1="21" x2="4" y2="14"/>
+                        <line x1="4" y1="10" x2="4" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12" y2="3"/>
+                        <line x1="20" y1="21" x2="20" y2="16"/>
+                        <line x1="20" y1="12" x2="20" y2="3"/>
+                        <line x1="1" y1="14" x2="7" y2="14"/>
+                        <line x1="9" y1="8" x2="15" y2="8"/>
+                        <line x1="17" y1="16" x2="23" y2="16"/>
+                    </svg>
+                </button>
+                <div class="status">
+                    <span class="status-indicator" id="status"></span>
+                    <span id="last-update">Waiting for data...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Timeframe Control Bar -->
+        <div class="control-bar">
+            <div style="display: flex; align-items: center; gap: 30px; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label for="data-timeframe-select" style="font-weight: 600;">Data Timeframe:</label>
+                    <select id="data-timeframe-select" style="padding: 6px 12px; font-size: 0.9rem; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff;">
+                        <option value="1h">Last 1 Hour</option>
+                        <option value="2h">Last 2 Hours</option>
+                        <option value="3h">Last 3 Hours</option>
+                        <option value="6h">Last 6 Hours</option>
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                        <option value="all" selected>All Time</option>
+                    </select>
+                </div>
+                <div style="margin-left: auto; min-width: 350px;">
+                    <div style="color: #888; font-size: 0.85rem; margin-bottom: 6px;">
+                        🔌 RethinkDB (WebSocket) | Port 28015
+                    </div>
+                    <div class="activity-timeline">
+                        <div class="timeline-track"></div>
+                        <div class="timeline-bars" id="timeline-bars"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Configure Claude.ai Usage Tracking</h2>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="instructions">
+                        <h3>How to get your cookies:</h3>
+                        <ol>
+                            <li>Open <a href="https://claude.ai/settings/usage" target="_blank">claude.ai/settings/usage</a> in your browser</li>
+                            <li>Make sure you're logged in and can see your usage</li>
+                            <li>Press <code>F12</code> to open Developer Tools</li>
+                            <li>Click the <strong>Console</strong> tab</li>
+                            <li>Type <code>document.cookie</code> and press Enter</li>
+                            <li>Copy the ENTIRE output (it's a long string)</li>
+                            <li>Paste it in the box below and click Save</li>
+                        </ol>
+                        <p style="color:#ff9800;font-size:0.85rem;margin-top:10px;">
+                            ⚠️ <strong>Important:</strong> Make sure the output includes <code>cf_clearance</code> cookie or it won't work!
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <label for="session-key-input">All Cookies (paste entire cookie string):</label>
+                        <textarea id="session-key-input" placeholder="sessionKey=sk-ant-...; cf_clearance=...; ..." rows="4" style="width:100%;resize:vertical;font-family:monospace;font-size:0.85rem;"></textarea>
+                        <div class="input-actions">
+                            <button id="test-session-btn" class="btn btn-secondary">Test Connection</button>
+                            <button id="save-session-btn" class="btn btn-primary">Save</button>
+                            <button id="clear-session-btn" class="btn btn-secondary">Clear</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label for="polling-interval-input">Usage Polling Interval (seconds):</label>
+                        <input type="number" id="polling-interval-input" min="5" max="300" value="30" style="width:100%;padding:8px;font-size:0.9rem;">
+                        <p style="color:#888;font-size:0.8rem;margin-top:5px;">How often to refresh Claude.ai usage data (5-300 seconds)</p>
+                    </div>
+
+                    <div id="session-status" class="status-message"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Claude.ai Usage Section -->
+        <div id="claude-usage-section" class="usage-section" style="display: none;">
+            <h2>🌐 Claude.ai Web Usage</h2>
+            <div class="usage-stats-grid">
+                <div class="usage-stat-card">
+                    <div class="usage-stat-label">5-Hour Usage</div>
+                    <div class="usage-stat-value" id="account-five-hour">0%</div>
+                    <div class="usage-stat-sublabel" id="account-five-hour-reset">Resets in --</div>
+                </div>
+                <div class="usage-stat-card">
+                    <div class="usage-stat-label">7-Day Usage</div>
+                    <div class="usage-stat-value" id="account-seven-day">0%</div>
+                    <div class="usage-stat-sublabel" id="account-seven-day-reset">Resets in --</div>
+                </div>
+                <div class="usage-stat-card">
+                    <div class="usage-stat-label">Sonnet (7-Day)</div>
+                    <div class="usage-stat-value" id="account-sonnet">0%</div>
+                    <div class="usage-stat-sublabel" id="account-sonnet-reset">Resets in --</div>
+                </div>
+                <div class="usage-stat-card">
+                    <div class="usage-stat-label">Last Updated</div>
+                    <div class="usage-stat-value" id="account-last-update">Never</div>
+                </div>
+            </div>
+            <div class="usage-status">
+                <span class="claude-status-indicator" id="claude-status"></span>
+                <span id="claude-status-text">Checking connection...</span>
+            </div>
+        </div>
+
+        <!-- Terminal Sessions Section -->
+        <div id="sessions-section" class="sessions-section" style="display: none;">
+            <div class="sessions-header">
+                <h2>💻 Terminal Sessions</h2>
+                <div class="sessions-stats">
+                    <span id="sessions-total">0 total</span>
+                    <span class="separator">•</span>
+                    <span id="sessions-active">0 active</span>
+                </div>
+            </div>
+            <div id="sessions-list" class="sessions-list">
+                <div class="no-data">No sessions detected yet. Start using Claude Code to see your terminal sessions here.</div>
+            </div>
+        </div>
+
+        <!-- Main Stats Row -->
+        <div class="main-stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                        <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-label">Sessions</div>
+                    <div class="stat-value" id="session-count">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="9" y1="9" x2="15" y2="9"/>
+                        <line x1="9" y1="15" x2="15" y2="15"/>
+                        <circle cx="12" cy="12" r="1" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-label">Common Mode</div>
+                    <div class="stat-value" id="common-mode">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="4 17 10 11 4 5"/>
+                        <line x1="12" y1="19" x2="20" y2="19"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-label">Active Time (CLI)</div>
+                    <div class="stat-value" id="active-time-cli">0m</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 11l3 3L22 4"/>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-label">Active Time (Planning)</div>
+                    <div class="stat-value" id="active-time-planning">0m</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23"/>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-label">Total Cost</div>
+                    <div class="stat-value" id="total-cost">$0.00</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="16 18 22 12 16 6"/>
+                        <polyline points="8 6 2 12 8 18"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-label">Lines of Code</div>
+                    <div class="stat-value" id="lines-of-code">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Token Stats Row -->
+        <div class="token-stats-grid">
+            <div class="stat-card token-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Input Tokens</div>
+                    <div class="stat-value" id="input-tokens">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card token-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Output Tokens</div>
+                    <div class="stat-value" id="output-tokens">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card token-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Cache Read</div>
+                    <div class="stat-value" id="cache-read">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card token-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Cache Creation</div>
+                    <div class="stat-value" id="cache-creation">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card token-stat highlight">
+                <div class="stat-content">
+                    <div class="stat-label">Cache Efficiency</div>
+                    <div class="stat-value" id="cache-efficiency">0%</div>
+                </div>
+            </div>
+
+            <div class="stat-card token-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Cost per 1K Output</div>
+                    <div class="stat-value cost" id="cost-per-1k">$0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 1: Breakdowns and Productivity -->
+        <div class="charts-grid-3">
+            <div class="chart-card">
+                <h2>Tokens by Type</h2>
+                <canvas id="tokens-by-type-chart"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h2>Tokens by Model</h2>
+                <canvas id="tokens-by-model-chart"></canvas>
+            </div>
+
+            <div class="chart-card productivity">
+                <h2>Productivity Ratio</h2>
+                <div class="productivity-gauge">
+                    <div class="gauge-value" id="productivity-ratio">0</div>
+                    <div class="gauge-label">tokens/sec</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 2: Cost by Model and Time Distribution -->
+        <div class="charts-grid-2">
+            <div class="chart-card">
+                <h2>Cost by Model</h2>
+                <div id="cost-by-model" class="cost-list"></div>
+            </div>
+
+            <div class="chart-card">
+                <h2>Active Time Distribution</h2>
+                <canvas id="time-distribution-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Time Series Charts -->
+        <div class="charts-grid-2">
+            <div class="chart-card">
+                <h2>Token Usage Over Time</h2>
+                <canvas id="token-usage-timeline"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h2>Cost Over Time</h2>
+                <canvas id="cost-timeline"></canvas>
+            </div>
+        </div>
+
+        <!-- Events Section -->
+        <div class="events-section">
+            <div class="events-card">
+                <h2>Recent Events</h2>
+                <div class="events-list" id="events-list">
+                    <div class="no-data">No events yet. Start a Claude Code session to see data.</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Configure Claude Code with OTLP endpoint: <code>http://localhost:4318</code></p>
+            <p>Set <code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code> to enable metrics</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

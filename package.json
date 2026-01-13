@@ -1,0 +1,29 @@
+{
+  "name": "claude-code-metrics-dashboard",
+  "version": "1.0.0",
+  "description": "OpenTelemetry metrics dashboard for Claude Code",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "debug": "DEBUG=true node server.js",
+    "migrate": "node migrate-sqlite-to-rethinkdb.js"
+  },
+  "keywords": [
+    "claude-code",
+    "opentelemetry",
+    "metrics",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "node-libcurl-ja3": "^5.2.1",
+    "rethinkdb": "^2.4.2",
+    "sqlite3": "^5.1.7",
+    "ws": "^8.19.0"
+  }
+}

@@ -1,0 +1,20 @@
+node_modules/
+npm-debug.log
+.DS_Store
+.env
+
+# Database files
+metrics.db
+metrics.db-journal
+
+# Log files
+server.log
+*.log
+
+# Claude/Serena directories
+.claude/
+.serena/
+
+# Screenshots and images (optional - keep if you want to include them)
+# *.png
+# *.webp
