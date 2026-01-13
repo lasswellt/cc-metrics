@@ -30,6 +30,28 @@ h1 {
     font-size: 2rem;
     font-weight: 600;
     color: #fff;
+    display: flex;
+    align-items: center;
+}
+
+h1 svg {
+    filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.3));
+    animation: logo-glow 3s ease-in-out infinite;
+}
+
+@keyframes logo-glow {
+    0%, 100% {
+        filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.3));
+    }
+    50% {
+        filter: drop-shadow(0 2px 8px rgba(102, 126, 234, 0.6))
+                drop-shadow(0 0 12px rgba(118, 75, 162, 0.4));
+    }
+}
+
+h1 span {
+    font-weight: 700;
+    letter-spacing: -0.5px;
 }
 
 .status {
@@ -124,21 +146,29 @@ h1 {
 
 .stat-icon {
     font-size: 2rem;
-    opacity: 0.8;
+    opacity: 0.9;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .stat-icon svg {
-    color: #4caf50;
-    filter: drop-shadow(0 0 8px rgba(76, 175, 80, 0.3));
-    transition: all 0.3s ease;
+    color: #667eea;
+    filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.3));
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Individual icon colors for variety */
+.stat-card:nth-child(1) .stat-icon svg { color: #667eea; filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.3)); }
+.stat-card:nth-child(2) .stat-icon svg { color: #764ba2; filter: drop-shadow(0 0 8px rgba(118, 75, 162, 0.3)); }
+.stat-card:nth-child(3) .stat-icon svg { color: #f093fb; filter: drop-shadow(0 0 8px rgba(240, 147, 251, 0.3)); }
+.stat-card:nth-child(4) .stat-icon svg { color: #4facfe; filter: drop-shadow(0 0 8px rgba(79, 172, 254, 0.3)); }
+.stat-card:nth-child(5) .stat-icon svg { color: #43e97b; filter: drop-shadow(0 0 8px rgba(67, 233, 123, 0.3)); }
+.stat-card:nth-child(6) .stat-icon svg { color: #fa709a; filter: drop-shadow(0 0 8px rgba(250, 112, 154, 0.3)); }
+
 .stat-card:hover .stat-icon svg {
-    transform: scale(1.1);
-    filter: drop-shadow(0 0 12px rgba(76, 175, 80, 0.5));
+    transform: scale(1.15) rotate(5deg);
+    filter: drop-shadow(0 0 16px currentColor) drop-shadow(0 0 8px currentColor);
 }
 
 .stat-content {

@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+
+  <!-- Logo: Claude Code Metrics -->
+  <symbol id="icon-logo" viewBox="0 0 200 40">
+    <!-- Brain/AI representation -->
+    <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M12,16 Q12,12 16,12 Q20,12 20,16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M20,16 Q20,12 24,12 Q28,12 28,16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="15" cy="17" r="1.5" fill="currentColor"/>
+    <circle cx="25" cy="17" r="1.5" fill="currentColor"/>
+    <path d="M14,24 Q20,28 26,24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+
+    <!-- Chart bars -->
+    <rect x="45" y="15" width="4" height="10" fill="currentColor" opacity="0.8" rx="1"/>
+    <rect x="52" y="10" width="4" height="15" fill="currentColor" opacity="0.9" rx="1"/>
+    <rect x="59" y="8" width="4" height="17" fill="currentColor" rx="1"/>
+
+    <!-- Code brackets -->
+    <path d="M70,12 L67,20 L70,28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <path d="M76,12 L79,20 L76,28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- Session Icon: Computer with sparkle -->
+  <symbol id="icon-sessions" viewBox="0 0 24 24">
+    <rect x="2" y="3" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="12" cy="9" r="2" fill="currentColor"/>
+    <path d="M16 6l1.5-1.5M8 6L6.5 4.5M12 3v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- Common Mode Icon: Grid pattern -->
+  <symbol id="icon-common-mode" viewBox="0 0 24 24">
+    <rect x="3" y="3" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>
+    <rect x="13" y="3" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>
+    <rect x="3" y="13" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>
+    <rect x="13" y="13" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
+    <circle cx="17" cy="7" r="1.5" fill="currentColor"/>
+    <circle cx="7" cy="17" r="1.5" fill="currentColor"/>
+    <circle cx="17" cy="17" r="1.5" fill="currentColor"/>
+  </symbol>
+
+  <!-- CLI Time Icon: Terminal with cursor -->
+  <symbol id="icon-cli-time" viewBox="0 0 24 24">
+    <rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M6 9l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="12" y1="15" x2="16" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="19" cy="8" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M19 6.5v1.5l1 0.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- Planning Time Icon: Brain with checkmarks -->
+  <symbol id="icon-planning-time" viewBox="0 0 24 24">
+    <path d="M12 3C7.5 3 4 6.5 4 11c0 3 1.5 5.5 4 7v3l4-2 4 2v-3c2.5-1.5 4-4 4-7 0-4.5-3.5-8-8-8z"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M9 11l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="8" cy="8" r="1" fill="currentColor"/>
+    <circle cx="16" cy="8" r="1" fill="currentColor"/>
+  </symbol>
+
+  <!-- Cost Icon: Dollar coin with stack -->
+  <symbol id="icon-cost" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M12 7v10M9.5 9h3.5a1.5 1.5 0 010 3h-3a1.5 1.5 0 000 3h3.5"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <ellipse cx="18" cy="17" rx="3" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+    <ellipse cx="18" cy="19" rx="3" ry="1.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+  </symbol>
+
+  <!-- Lines of Code Icon: Code file with counter -->
+  <symbol id="icon-lines-code" viewBox="0 0 24 24">
+    <rect x="3" y="2" width="18" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M8 8l-2 2 2 2M12 8l2 2-2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="7" y1="15" x2="17" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="7" y1="18" x2="14" y2="18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="18" cy="6" r="3" fill="currentColor" stroke="white" stroke-width="1.5"/>
+  </symbol>
+
+  <!-- Token Icon: Hexagonal token -->
+  <symbol id="icon-token" viewBox="0 0 24 24">
+    <path d="M12 2l8 4.5v9L12 22l-8-6.5v-9L12 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="12" cy="12" r="3" fill="currentColor"/>
+  </symbol>
+
+  <!-- Input Token Icon: Arrow into hexagon -->
+  <symbol id="icon-input-token" viewBox="0 0 24 24">
+    <path d="M12 4l6 3.5v7L12 18l-6-3.5v-7L12 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M16 11l-4 4-4-4M12 15V7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+
+  <!-- Output Token Icon: Arrow out of hexagon -->
+  <symbol id="icon-output-token" viewBox="0 0 24 24">
+    <path d="M12 4l6 3.5v7L12 18l-6-3.5v-7L12 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M8 11l4-4 4 4M12 7v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+
+  <!-- Cache Read Icon: Database with arrow -->
+  <symbol id="icon-cache-read" viewBox="0 0 24 24">
+    <ellipse cx="12" cy="6" rx="8" ry="3" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M16 14l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+
+  <!-- Cache Creation Icon: Database with plus -->
+  <symbol id="icon-cache-creation" viewBox="0 0 24 24">
+    <ellipse cx="12" cy="6" rx="8" ry="3" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="16" cy="16" r="3" fill="currentColor"/>
+    <path d="M16 14.5v3M14.5 16h3" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- Total Tokens Icon: Stack of hexagons -->
+  <symbol id="icon-total-tokens" viewBox="0 0 24 24">
+    <path d="M12 2l6 3.5v7L12 16l-6-3.5v-7L12 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M12 8l4 2.3v4.6L12 17l-4-2.3v-4.6L12 8z" fill="currentColor" opacity="0.3"/>
+    <circle cx="12" cy="12" r="2" fill="currentColor"/>
+    <path d="M18 14l-1 .6M6 14l1 .6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  </symbol>
+
+  <!-- User Time Icon: Person with clock -->
+  <symbol id="icon-user-time" viewBox="0 0 24 24">
+    <circle cx="9" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M3 21v-2c0-2.2 1.8-4 4-4h4c2.2 0 4 1.8 4 4v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="18" cy="9" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M18 7v2.5l1.5 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+
+  <!-- Refresh Icon: Circular arrows -->
+  <symbol id="icon-refresh" viewBox="0 0 24 24">
+    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"
+          fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+
+  <!-- Settings Icon: Sliders -->
+  <symbol id="icon-settings" viewBox="0 0 24 24">
+    <line x1="4" y1="21" x2="4" y2="14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="4" y1="10" x2="4" y2="3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="12" y1="21" x2="12" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="12" y1="8" x2="12" y2="3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="20" y1="21" x2="20" y2="16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="20" y1="12" x2="20" y2="3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="1" y1="14" x2="7" y2="14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="9" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="17" y1="16" x2="23" y2="16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+  </symbol>
+
+</svg>
