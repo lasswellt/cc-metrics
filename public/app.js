@@ -386,7 +386,7 @@ function stringToColor(str) {
 function updateStats(data) {
     // Main stats
     document.getElementById('session-count').textContent = data.sessionCount;
-    document.getElementById('common-mode').textContent = data.commonModeCount;
+    // Common mode stat card removed
     
     // Active times - display formatted string from backend (already includes units like "5.0m" or "30.2s")
     document.getElementById('active-time-cli').textContent = data.activeTimeCLI || '0s';
