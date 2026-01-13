@@ -42,6 +42,52 @@ docker run -d --name rethinkdb \        # Run RethinkDB in Docker
   -p 28015:28015 -p 8080:8080 rethinkdb
 ```
 
+## Git Workflow
+
+**CRITICAL: The main branch is protected. Always create a feature branch for your work.**
+
+### Branch Management Rules
+
+1. **Always create a new branch for each session/task**
+   ```bash
+   git checkout -b feature/descriptive-name
+   # Example: feature/add-cost-tracking
+   # Example: fix/metrics-aggregation-bug
+   ```
+
+2. **Branch naming conventions:**
+   - `feature/` - New features or enhancements
+   - `fix/` - Bug fixes
+   - `refactor/` - Code refactoring
+   - `docs/` - Documentation updates
+   - `test/` - Test additions or updates
+
+3. **Workflow for each session:**
+   ```bash
+   # Start of session: Create and switch to new branch
+   git checkout -b feature/your-feature-name
+
+   # Make changes, then commit
+   git add .
+   git commit -m "Descriptive commit message"
+
+   # Push to remote
+   git push -u origin feature/your-feature-name
+
+   # Create pull request (when ready)
+   gh pr create --title "Feature: Your feature name" --body "Description of changes"
+   ```
+
+4. **Never commit directly to main:**
+   - Main branch is protected and requires pull requests
+   - All changes must go through a feature branch
+   - This ensures code review and maintains stability
+
+5. **Keep branches focused:**
+   - One branch per logical change or feature
+   - Small, focused changes are easier to review
+   - Commit often with clear messages
+
 ## Architecture
 
 ### Data Flow
