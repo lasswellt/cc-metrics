@@ -1,9 +1,9 @@
-const r = require('rethinkdb');
+const { r, connect } = require('./config/database');
 
 async function recalculate() {
   let conn;
   try {
-    conn = await r.connect({ host: 'localhost', port: 28015, db: 'metrics' });
+    conn = await connect();
     
     // Get all sessions
     const sessions = await r.table('sessions').run(conn);

@@ -1,21 +1,48 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const r = require('rethinkdb');
 const axios = require('axios');
 const { Browser, Curl, impersonate } = require('node-libcurl-ja3');
 const WebSocket = require('ws');
 const http = require('http');
 const { setupDatabase } = require('./db-setup');
+const rateLimit = require('express-rate-limit');
+const { r, dbConfig, connect } = require('./config/database');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+
+// Server configuration constants
 const OTLP_PORT = 4318;
 const DASHBOARD_PORT = 3000;
 
 // Debug mode flag
 const DEBUG = process.env.DEBUG === 'true';
+
+// Time constants (milliseconds)
+const TIME_CONSTANTS = {
+  ONE_SECOND: 1000,
+  ONE_MINUTE: 60 * 1000,
+  FIVE_MINUTES: 5 * 60 * 1000,
+  ONE_HOUR: 60 * 60 * 1000,
+  ONE_DAY: 24 * 60 * 60 * 1000,
+  ONE_WEEK: 7 * 24 * 60 * 60 * 1000,
+  THIRTY_DAYS: 30 * 24 * 60 * 60 * 1000
+};
+
+// Cache and storage limits
+const CACHE_LIMITS = {
+  MAX_METRICS: 1000,
+  MAX_EVENTS: 500
+};
+
+// Database operation settings
+const DB_SETTINGS = {
+  RETRY_MAX_ATTEMPTS: 3,
+  RETRY_INITIAL_DELAY: 1000,
+  BUCKET_SIZE_MS: TIME_CONSTANTS.ONE_MINUTE
+};
 
 // Debug logging helper
 function debugLog(...args) {
@@ -23,6 +50,24 @@ function debugLog(...args) {
     console.log(...args);
   }
 }
+
+// Rate limiting configuration
+const otlpRateLimiter = rateLimit({
+  windowMs: TIME_CONSTANTS.ONE_MINUTE,
+  max: 1000, // 1000 requests per minute per IP
+  message: {
+    error: 'Too many OTLP requests from this IP',
+    message: 'Please try again later',
+    retryAfter: '1 minute'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for localhost in development
+  skip: (req) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    return ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1';
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -335,19 +380,12 @@ function initializeModelTracking(storageObject, model) {
 // RethinkDB Database Setup (WebSocket connection)
 let dbConnection = null;
 
-// RethinkDB connection configuration
-const dbConfig = {
-  host: process.env.RETHINKDB_HOST || 'localhost',
-  port: process.env.RETHINKDB_PORT || 28015,
-  db: 'metrics'
-};
-
 // Initialize RethinkDB connection and schema
 async function initializeDatabase() {
   // Try to connect to RethinkDB
   try {
     console.log(`🔌 Connecting to RethinkDB at ${dbConfig.host}:${dbConfig.port}...`);
-    dbConnection = await r.connect(dbConfig);
+    dbConnection = await connect();
     console.log('📦 Connected to RethinkDB via WebSocket (native RethinkDB protocol)');
     console.log(`   Connection type: TCP with WebSocket-like protocol on port ${dbConfig.port}`);
     console.log(`   Database: ${dbConfig.db}`);
@@ -427,19 +465,19 @@ function getTimeframeCutoff(timeframe) {
   const now = Date.now();
   switch (timeframe) {
     case '1h':
-      return now - (1 * 60 * 60 * 1000);
+      return now - TIME_CONSTANTS.ONE_HOUR;
     case '2h':
-      return now - (2 * 60 * 60 * 1000);
+      return now - (2 * TIME_CONSTANTS.ONE_HOUR);
     case '3h':
-      return now - (3 * 60 * 60 * 1000);
+      return now - (3 * TIME_CONSTANTS.ONE_HOUR);
     case '6h':
-      return now - (6 * 60 * 60 * 1000);
+      return now - (6 * TIME_CONSTANTS.ONE_HOUR);
     case '24h':
-      return now - (24 * 60 * 60 * 1000);
+      return now - TIME_CONSTANTS.ONE_DAY;
     case '7d':
-      return now - (7 * 24 * 60 * 60 * 1000);
+      return now - TIME_CONSTANTS.ONE_WEEK;
     case '30d':
-      return now - (30 * 24 * 60 * 60 * 1000);
+      return now - TIME_CONSTANTS.THIRTY_DAYS;
     case 'all':
     default:
       return 0; // No filtering
@@ -468,7 +506,7 @@ function checkAndResetStats() {
   const now = Date.now();
   
   // Check daily reset
-  if (now >= storage.dailyStats.dayStart + 86400000) { // 24 hours
+  if (now >= storage.dailyStats.dayStart + TIME_CONSTANTS.ONE_DAY) {
     console.log('🔄 Resetting daily stats');
     storage.dailyStats = {
       dayStart: getDayStart(),
@@ -483,7 +521,7 @@ function checkAndResetStats() {
   }
   
   // Check weekly reset
-  if (now >= storage.weeklyStats.weekStart + 604800000) { // 7 days
+  if (now >= storage.weeklyStats.weekStart + TIME_CONSTANTS.ONE_WEEK) {
     console.log('🔄 Resetting weekly stats');
     storage.weeklyStats = {
       weekStart: getWeekStart(),
@@ -831,7 +869,7 @@ async function updateMetricBucket(timestamp, metricName, value, attributes) {
   if (!dbConnection) return;
 
   try {
-    const bucketTime = Math.floor(timestamp / 60000) * 60000; // Floor to 1-min bucket
+    const bucketTime = Math.floor(timestamp / TIME_CONSTANTS.ONE_MINUTE) * TIME_CONSTANTS.ONE_MINUTE;
     const model = attributes.model || 'unknown';
 
     // Parse metric into field updates using centralized utility function
@@ -965,7 +1003,7 @@ async function updateAggregatedStats(metricName, value, attributes) {
 }
 
 // OTLP Metrics endpoint
-app.post('/v1/metrics', validateOTLPPayload, (req, res) => {
+app.post('/v1/metrics', otlpRateLimiter, validateOTLPPayload, (req, res) => {
   debugLog('📊 Received metrics data');
 
   try {
@@ -1332,7 +1370,7 @@ app.post('/v1/metrics', validateOTLPPayload, (req, res) => {
 });
 
 // OTLP Logs endpoint
-app.post('/v1/logs', validateOTLPPayload, (req, res) => {
+app.post('/v1/logs', otlpRateLimiter, validateOTLPPayload, (req, res) => {
   debugLog('📝 Received logs/events data');
 
   try {
@@ -1640,7 +1678,7 @@ app.get('/api/metrics', async (req, res) => {
     const tokensByTypeHistory = [];
 
     // Group cost metrics by 5-minute buckets for smoother graphs
-    const bucketSize = 5 * 60 * 1000; // 5 minutes
+    const bucketSize = TIME_CONSTANTS.FIVE_MINUTES;
     const costBuckets = new Map();
     const tokenBuckets = new Map();
 
@@ -1783,9 +1821,9 @@ app.get('/api/events', (req, res) => {
   const timeframe = req.query.timeframe || 'all';
   const cutoffTime = getTimeframeCutoff(timeframe);
 
-  // Keep only last 500 events
-  if (storage.events.length > 500) {
-    storage.events = storage.events.slice(-500);
+  // Keep only last MAX_EVENTS events
+  if (storage.events.length > CACHE_LIMITS.MAX_EVENTS) {
+    storage.events = storage.events.slice(-CACHE_LIMITS.MAX_EVENTS);
   }
 
   // Filter events by timeframe
@@ -1814,7 +1852,7 @@ app.get('/api/sessions', (req, res) => {
     .map(session => {
       const duration = now - session.startTime;
       const totalActiveTime = session.activeTimeCLI + session.activeTimePlanning + session.activeTimeUser;
-      const isActive = (now - session.lastSeen) < 60000; // Active if seen in last minute
+      const isActive = (now - session.lastSeen) < TIME_CONSTANTS.ONE_MINUTE;
 
       return {
         sessionId: session.sessionId,
@@ -2051,7 +2089,7 @@ function calculateUtilizationRate(dataPoints) {
   const last = dataPoints[dataPoints.length - 1];
 
   const utilizationChange = last.utilization - first.utilization;
-  const timeChangeHours = (last.timestamp - first.timestamp) / 3600000;
+  const timeChangeHours = (last.timestamp - first.timestamp) / TIME_CONSTANTS.ONE_HOUR;
 
   return timeChangeHours > 0 ? utilizationChange / timeChangeHours : 0;
 }
@@ -2064,7 +2102,7 @@ async function calculateUsageProjection(metricField, currentUtilization, resetsI
 
   // Fetch last 24 hours of historical data
   const now = Date.now();
-  const cutoffTime = now - (24 * 60 * 60 * 1000);
+  const cutoffTime = now - TIME_CONSTANTS.ONE_DAY;
 
   try {
     const history = await r.db('metrics')
@@ -2098,14 +2136,14 @@ async function calculateUsageProjection(metricField, currentUtilization, resetsI
     // Time to 100%
     const remaining = 100 - currentUtilization;
     const hoursTo100 = rate > 0 ? remaining / rate : Infinity;
-    const msTo100 = hoursTo100 * 3600000;
+    const msTo100 = hoursTo100 * TIME_CONSTANTS.ONE_HOUR;
 
     // Determine severity based on thresholds
     let severity = 'safe';
     if (rate > 0 && msTo100 < resetsIn) {
-      if (msTo100 < 12 * 3600000) {
+      if (msTo100 < 12 * TIME_CONSTANTS.ONE_HOUR) {
         severity = 'critical';  // < 12 hours
-      } else if (msTo100 < 72 * 3600000) {
+      } else if (msTo100 < 72 * TIME_CONSTANTS.ONE_HOUR) {
         severity = 'warning';   // 12-72 hours
       }
     }
@@ -2118,7 +2156,7 @@ async function calculateUsageProjection(metricField, currentUtilization, resetsI
       msToReset: resetsIn,
       willHitLimit: rate > 0 && msTo100 < resetsIn,
       severity: severity,
-      safetyMargin: ((resetsIn - msTo100) / 3600000).toFixed(1) // hours
+      safetyMargin: ((resetsIn - msTo100) / TIME_CONSTANTS.ONE_HOUR).toFixed(1) // hours
     };
   } catch (error) {
     console.error('Error calculating usage projection:', error);
@@ -2478,13 +2516,13 @@ app.get('/api/claude-usage/history', async (req, res) => {
     // Calculate cutoff time based on timeframe
     const now = Date.now();
     const timeframes = {
-      '1h': 60 * 60 * 1000,
-      '2h': 2 * 60 * 60 * 1000,
-      '3h': 3 * 60 * 60 * 1000,
-      '6h': 6 * 60 * 60 * 1000,
-      '24h': 24 * 60 * 60 * 1000,
-      '7d': 7 * 24 * 60 * 60 * 1000,
-      '30d': 30 * 24 * 60 * 60 * 1000
+      '1h': TIME_CONSTANTS.ONE_HOUR,
+      '2h': 2 * TIME_CONSTANTS.ONE_HOUR,
+      '3h': 3 * TIME_CONSTANTS.ONE_HOUR,
+      '6h': 6 * TIME_CONSTANTS.ONE_HOUR,
+      '24h': TIME_CONSTANTS.ONE_DAY,
+      '7d': TIME_CONSTANTS.ONE_WEEK,
+      '30d': TIME_CONSTANTS.THIRTY_DAYS
     };
 
     const cutoffMs = timeframes[timeframe] || timeframes['24h'];
@@ -2535,11 +2573,11 @@ async function loadRecentDataFromDB() {
   console.log('📚 Loading recent data from database...');
 
   try {
-    // Load last 1000 metrics
+    // Load last MAX_METRICS metrics
     const metricsCursor = await r.db('metrics')
       .table('metrics')
       .orderBy({ index: r.desc('timestamp') })
-      .limit(1000)
+      .limit(CACHE_LIMITS.MAX_METRICS)
       .run(dbConnection);
 
     const metricsRows = await metricsCursor.toArray();
@@ -2553,11 +2591,11 @@ async function loadRecentDataFromDB() {
 
     console.log(`  ✅ Loaded ${metricsRows.length} metrics`);
 
-    // Load last 500 events
+    // Load last MAX_EVENTS events
     const eventsCursor = await r.db('metrics')
       .table('events')
       .orderBy({ index: r.desc('timestamp') })
-      .limit(500)
+      .limit(CACHE_LIMITS.MAX_EVENTS)
       .run(dbConnection);
 
     const eventsRows = await eventsCursor.toArray();
@@ -2870,7 +2908,7 @@ function formatSessionData(session) {
     startTime: session.startTime,
     lastSeen: session.lastSeen,
     duration: now - session.startTime,
-    isActive: (now - session.lastSeen) < 60000, // Active if seen in last minute
+    isActive: (now - session.lastSeen) < TIME_CONSTANTS.ONE_MINUTE,
     inputTokens: session.inputTokens || 0,
     outputTokens: session.outputTokens || 0,
     cacheReadTokens: session.cacheReadTokens || 0,
@@ -2930,98 +2968,7 @@ function broadcastSessionUpdate(change) {
   });
 }
 
-// Recalculate aggregated stats from all buckets (OLD - DEPRECATED - Use recalculateAggregatedStatsFromSessions instead)
-async function recalculateAggregatedStatsFromBuckets() {
-  if (!dbConnection) return;
-
-  try {
-    console.log('🔄 Recalculating aggregated stats from all buckets...');
-
-    // Get all buckets
-    const buckets = await r.db('metrics')
-      .table('metric_buckets')
-      .run(dbConnection);
-
-    const bucketsArray = await buckets.toArray();
-    console.log(`  📊 Found ${bucketsArray.length} buckets to process`);
-
-    if (bucketsArray.length === 0) {
-      console.log('  ℹ️  No buckets found, skipping recalculation');
-      return;
-    }
-
-    // Aggregate all data from buckets
-    const aggregated = {
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheCreationTokens: 0,
-      totalCost: 0,
-      activeTimeCLI: 0,
-      activeTimePlanning: 0,
-      activeTimeUser: 0,
-      linesOfCode: 0,
-      commandsBlocked: 0,
-      gitFailures: 0,
-      filesModified: 0,
-      toolCalls: 0,
-      byModel: {},
-      lastUpdated: Date.now()
-    };
-
-    bucketsArray.forEach(bucket => {
-      aggregated.inputTokens += bucket.inputTokens || 0;
-      aggregated.outputTokens += bucket.outputTokens || 0;
-      aggregated.cacheReadTokens += bucket.cacheReadTokens || 0;
-      aggregated.cacheCreationTokens += bucket.cacheCreationTokens || 0;
-      aggregated.totalCost += bucket.totalCost || 0;
-      aggregated.activeTimeCLI += bucket.activeTimeCLI || 0;
-      aggregated.activeTimePlanning += bucket.activeTimePlanning || 0;
-      aggregated.activeTimeUser += bucket.activeTimeUser || 0;
-      aggregated.linesOfCode += bucket.linesOfCode || 0;
-      aggregated.commandsBlocked += bucket.commandsBlocked || 0;
-      aggregated.gitFailures += bucket.gitFailures || 0;
-      aggregated.filesModified += bucket.filesModified || 0;
-      aggregated.toolCalls += bucket.toolCalls || 0;
-
-      // Merge byModel
-      if (bucket.byModel) {
-        Object.entries(bucket.byModel).forEach(([model, data]) => {
-          if (!aggregated.byModel[model]) {
-            aggregated.byModel[model] = {
-              inputTokens: 0,
-              outputTokens: 0,
-              cacheReadTokens: 0,
-              cacheCreationTokens: 0,
-              cost: 0
-            };
-          }
-          aggregated.byModel[model].inputTokens += data.inputTokens || 0;
-          aggregated.byModel[model].outputTokens += data.outputTokens || 0;
-          aggregated.byModel[model].cacheReadTokens += data.cacheReadTokens || 0;
-          aggregated.byModel[model].cacheCreationTokens += data.cacheCreationTokens || 0;
-          aggregated.byModel[model].cost += data.cost || 0;
-        });
-      }
-    });
-
-    // Replace the aggregated_stats document with recalculated values
-    await r.db('metrics').table('aggregated_stats')
-      .get('current')
-      .replace(Object.assign({ id: 'current' }, aggregated))
-      .run(dbConnection);
-
-    console.log(`  ✅ Recalculated aggregated stats:`);
-    console.log(`     Total Cost: $${aggregated.totalCost.toFixed(2)}`);
-    console.log(`     Input Tokens: ${(aggregated.inputTokens / 1000).toFixed(1)}K`);
-    console.log(`     Output Tokens: ${(aggregated.outputTokens / 1000).toFixed(1)}K`);
-    console.log(`     Cache Read: ${(aggregated.cacheReadTokens / 1000000).toFixed(1)}M`);
-    console.log(`     Lines of Code: ${aggregated.linesOfCode}`);
-  } catch (err) {
-    console.error('❌ Error recalculating aggregated stats:', err);
-  }
-}
-
+// Recalculate aggregated stats from sessions (source of truth for historical data)
 async function recalculateAggregatedStatsFromSessions() {
   if (!dbConnection) return;
 
@@ -3132,7 +3079,7 @@ async function startSessionChangefeed() {
       .table('sessions')
       .filter(function(session) {
         // Only stream sessions active in last 5 minutes (300000 ms)
-        return session('lastSeen').gt(r.now().toEpochTime().mul(1000).sub(300000));
+        return session('lastSeen').gt(r.now().toEpochTime().mul(1000).sub(TIME_CONSTANTS.FIVE_MINUTES));
       })
       .changes({
         includeInitial: true,    // Send snapshot on connect
@@ -3354,7 +3301,7 @@ async function startBucketChangefeed() {
   try {
     console.log('🔄 Starting bucket changefeed...');
 
-    const MAX_TIMEFRAME = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
+    const MAX_TIMEFRAME = TIME_CONSTANTS.THIRTY_DAYS;
 
     bucketChangefeed = await r.db('metrics')
       .table('metric_buckets')
@@ -3438,7 +3385,7 @@ async function cleanupInactiveSessions() {
 
 // Clean up old Claude usage history (keep 30 days)
 async function cleanupClaudeUsageHistory() {
-  const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = Date.now() - TIME_CONSTANTS.THIRTY_DAYS;
 
   try {
     const result = await r.db('metrics')
@@ -3498,17 +3445,17 @@ async function startServer() {
       // Check for daily/weekly resets every hour
       setInterval(() => {
         checkAndResetStats();
-      }, 3600000); // 1 hour
+      }, TIME_CONSTANTS.ONE_HOUR);
 
       // Cleanup inactive sessions every minute
       setInterval(() => {
         cleanupInactiveSessions();
-      }, 60000); // 1 minute
+      }, TIME_CONSTANTS.ONE_MINUTE);
 
       // Cleanup old Claude usage history every day
       setInterval(() => {
         cleanupClaudeUsageHistory();
-      }, 86400000); // 24 hours
+      }, TIME_CONSTANTS.ONE_DAY);
     });
   } catch (err) {
     console.error('Failed to start server:', err);

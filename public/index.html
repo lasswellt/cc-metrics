@@ -3,6 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Real-time Claude Code usage metrics and monitoring dashboard. Track token consumption, costs, active time, and performance metrics for your Claude AI development workflow.">
+    <meta name="keywords" content="Claude Code, metrics, monitoring, dashboard, AI, token usage, cost tracking, development tools, OpenTelemetry">
+    <meta name="author" content="Claude Code Metrics">
+    <meta name="theme-color" content="#667eea">
+    
+    <!-- OpenGraph / Social Media -->
+    <meta property="og:title" content="Claude Code Metrics Dashboard">
+    <meta property="og:description" content="Monitor Claude Code usage, token consumption, and costs in real-time">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Claude Code Metrics">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Claude Code Metrics Dashboard">
+    <meta name="twitter:description" content="Monitor Claude Code usage, token consumption, and costs in real-time">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="icons.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    
     <title>Claude Code Metrics Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -12,10 +32,10 @@
     <div class="container">
         <header>
             <h1>
-                <svg width="120" height="40" style="vertical-align: middle; margin-right: 15px;">
+                <svg width="120" height="40" class="logo-svg">
                     <use href="icons.svg?v=2#icon-logo"/>
                 </svg>
-                <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Claude Code Metrics</span>
+                <span class="gradient-text">Claude Code Metrics</span>
             </h1>
             <div class="header-right">
                 <button id="refresh-btn" class="settings-btn" title="Refresh data">
@@ -37,10 +57,10 @@
 
         <!-- Timeframe Control Bar -->
         <div class="control-bar">
-            <div style="display: flex; align-items: center; gap: 30px; width: 100%;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <label for="data-timeframe-select" style="font-weight: 600;">Data Timeframe:</label>
-                    <select id="data-timeframe-select" style="padding: 6px 12px; font-size: 0.9rem; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff;">
+            <div class="flex-row-wide">
+                <div class="flex-row flex-gap-small">
+                    <label for="data-timeframe-select" class="label-bold">Data Timeframe:</label>
+                    <select id="data-timeframe-select" class="select-styled">
                         <option value="1h">Last 1 Hour</option>
                         <option value="2h">Last 2 Hours</option>
                         <option value="3h">Last 3 Hours</option>
@@ -51,8 +71,8 @@
                         <option value="all" selected>All Time</option>
                     </select>
                 </div>
-                <div style="margin-left: auto; min-width: 350px;">
-                    <div style="color: #888; font-size: 0.85rem; margin-bottom: 6px;">
+                <div class="margin-left-auto">
+                    <div class="text-muted-small">
                         🔌 RethinkDB (WebSocket) | Port 28015
                     </div>
                     <div class="activity-timeline">
@@ -82,13 +102,13 @@
                             <li>Copy the ENTIRE output (it's a long string)</li>
                             <li>Paste it in the box below and click Save</li>
                         </ol>
-                        <p style="color:#ff9800;font-size:0.85rem;margin-top:10px;">
+                        <p class="warning-text-small">
                             ⚠️ <strong>Important:</strong> Make sure the output includes <code>cf_clearance</code> cookie or it won't work!
                         </p>
                     </div>
                     <div class="form-group">
                         <label for="session-key-input">All Cookies (paste entire cookie string):</label>
-                        <textarea id="session-key-input" placeholder="sessionKey=sk-ant-...; cf_clearance=...; ..." rows="4" style="width:100%;resize:vertical;font-family:monospace;font-size:0.85rem;"></textarea>
+                        <textarea id="session-key-input" placeholder="sessionKey=sk-ant-...; cf_clearance=...; ..." rows="4" class="textarea-monospace"></textarea>
                         <div class="input-actions">
                             <button id="test-session-btn" class="btn btn-secondary">Test Connection</button>
                             <button id="save-session-btn" class="btn btn-primary">Save</button>
@@ -96,10 +116,10 @@
                         </div>
                     </div>
 
-                    <div class="form-group" style="margin-top: 20px;">
+                    <div class="form-group form-group-spaced">
                         <label for="polling-interval-input">Usage Polling Interval (seconds):</label>
-                        <input type="number" id="polling-interval-input" min="5" max="300" value="30" style="width:100%;padding:8px;font-size:0.9rem;">
-                        <p style="color:#888;font-size:0.8rem;margin-top:5px;">How often to refresh Claude.ai usage data (5-300 seconds)</p>
+                        <input type="number" id="polling-interval-input" min="5" max="300" value="30" class="input-full-width">
+                        <p class="help-text-small">How often to refresh Claude.ai usage data (5-300 seconds)</p>
                     </div>
 
                     <div id="session-status" class="status-message"></div>
@@ -108,7 +128,7 @@
         </div>
 
         <!-- Claude.ai Usage Section -->
-        <div id="claude-usage-section" class="usage-section" style="display: none;">
+        <div id="claude-usage-section" class="usage-section hidden">
             <h2>🌐 Claude.ai Web Usage</h2>
             <div class="usage-stats-grid">
                 <div class="usage-stat-card">
@@ -143,7 +163,7 @@
         </div>
 
         <!-- Terminal Sessions Section -->
-        <div id="sessions-section" class="sessions-section" style="display: none;">
+        <div id="sessions-section" class="sessions-section hidden">
             <div class="sessions-header">
                 <h2>💻 Terminal Sessions</h2>
                 <div class="sessions-stats">
@@ -237,7 +257,7 @@
             <div class="stat-card token-stat">
                 <div class="stat-content">
                     <div class="stat-label">
-                        <svg width="16" height="16" style="vertical-align: middle; margin-right: 4px; opacity: 0.7;">
+                        <svg width="16" height="16" class="icon-inline">
                             <use href="icons.svg#icon-input-token"/>
                         </svg>
                         Input Tokens
@@ -249,7 +269,7 @@
             <div class="stat-card token-stat">
                 <div class="stat-content">
                     <div class="stat-label">
-                        <svg width="16" height="16" style="vertical-align: middle; margin-right: 4px; opacity: 0.7;">
+                        <svg width="16" height="16" class="icon-inline">
                             <use href="icons.svg#icon-output-token"/>
                         </svg>
                         Output Tokens
@@ -261,7 +281,7 @@
             <div class="stat-card token-stat">
                 <div class="stat-content">
                     <div class="stat-label">
-                        <svg width="16" height="16" style="vertical-align: middle; margin-right: 4px; opacity: 0.7;">
+                        <svg width="16" height="16" class="icon-inline">
                             <use href="icons.svg#icon-cache-read"/>
                         </svg>
                         Cache Read
@@ -273,7 +293,7 @@
             <div class="stat-card token-stat">
                 <div class="stat-content">
                     <div class="stat-label">
-                        <svg width="16" height="16" style="vertical-align: middle; margin-right: 4px; opacity: 0.7;">
+                        <svg width="16" height="16" class="icon-inline">
                             <use href="icons.svg#icon-cache-creation"/>
                         </svg>
                         Cache Creation
@@ -285,7 +305,7 @@
             <div class="stat-card token-stat highlight">
                 <div class="stat-content">
                     <div class="stat-label">
-                        <svg width="16" height="16" style="vertical-align: middle; margin-right: 4px; opacity: 0.7;">
+                        <svg width="16" height="16" class="icon-inline">
                             <use href="icons.svg#icon-total-tokens"/>
                         </svg>
                         Cache Efficiency
@@ -297,7 +317,7 @@
             <div class="stat-card token-stat">
                 <div class="stat-content">
                     <div class="stat-label">
-                        <svg width="16" height="16" style="vertical-align: middle; margin-right: 4px; opacity: 0.7;">
+                        <svg width="16" height="16" class="icon-inline">
                             <use href="icons.svg#icon-cost"/>
                         </svg>
                         Cost per 1K Output

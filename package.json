@@ -22,6 +22,7 @@
     "axios": "^1.6.0",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
     "node-libcurl-ja3": "^5.2.1",
     "rethinkdb": "^2.4.2",
     "ws": "^8.19.0"

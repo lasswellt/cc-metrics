@@ -9,15 +9,8 @@
  * This script is also automatically run when the server starts for the first time.
  */
 
-const r = require('rethinkdb');
 const { setupDatabase } = require('./db-setup');
-
-// Database configuration
-const dbConfig = {
-  host: process.env.RETHINKDB_HOST || 'localhost',
-  port: parseInt(process.env.RETHINKDB_PORT || '28015', 10),
-  db: 'metrics'
-};
+const { r, dbConfig, connect } = require('./config/database');
 
 async function main() {
   console.log('🚀 RethinkDB Database Setup\n');
@@ -31,7 +24,7 @@ async function main() {
   try {
     // Connect to RethinkDB
     console.log(`🔌 Connecting to RethinkDB at ${dbConfig.host}:${dbConfig.port}...`);
-    connection = await r.connect(dbConfig);
+    connection = await connect();
     console.log('✅ Connected to RethinkDB\n');
 
     // Run database setup
