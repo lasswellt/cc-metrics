@@ -1290,7 +1290,7 @@ footer code {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 140px;
+    min-width: 125px;
     flex: 1;
 }
 
@@ -1322,7 +1322,7 @@ footer code {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 110px;
+    min-width: 95px;
     flex: 0 1 auto;
 }
 
