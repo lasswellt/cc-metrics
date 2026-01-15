@@ -396,7 +396,7 @@ async function initializeDatabase() {
       console.error('  Option 1 (Local):');
       console.error('    rethinkdb\n');
       console.error('  Option 2 (Docker):');
-      console.error('    docker run -d --name rethinkdb -p 28015:28015 -p 8080:8080 rethinkdb\n');
+      console.error('    docker run -d --name rethinkdb -p 28015:28015 -p 8081:8080 rethinkdb\n');
       console.error('  Then restart this server with: npm start\n');
       process.exit(1);
     } else if (error.code === 'ETIMEDOUT' || error.code === 'EHOSTUNREACH') {
@@ -420,7 +420,7 @@ async function initializeDatabase() {
     console.error('\n❌ ERROR: Failed to initialize database schema\n');
     console.error(`  ${error.message}\n`);
     console.error('  This may be a permissions issue or database corruption.\n');
-    console.error('  Check RethinkDB logs for more details: http://localhost:8080\n');
+    console.error('  Check RethinkDB logs for more details: http://localhost:8081\n');
     process.exit(1);
   }
 }
@@ -1877,8 +1877,8 @@ app.get('/api/sessions', (req, res) => {
       };
     });
 
-  // Sort by last seen (most recent first)
-  sessionsArray.sort((a, b) => b.lastSeen - a.lastSeen);
+  // Sort by start time (newest session first)
+  sessionsArray.sort((a, b) => b.startTime - a.startTime);
 
   res.json({
     sessions: sessionsArray,
