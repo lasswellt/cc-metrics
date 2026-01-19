@@ -351,6 +351,48 @@ function formatModelName(modelFullName) {
     return modelFullName;
 }
 
+// Get model family and version from full model name
+// Returns: { family: 'opus'|'sonnet'|'haiku'|'unknown', version: '4.5'|null }
+function getModelFamily(modelFullName) {
+    if (!modelFullName) return { family: 'unknown', version: null };
+
+    const lower = modelFullName.toLowerCase();
+
+    if (lower.includes('opus')) {
+        const match = lower.match(/opus[_-](\d+)[_-](\d+)/);
+        const version = match ? `${match[1]}.${match[2]}` : null;
+        return { family: 'opus', version };
+    }
+
+    if (lower.includes('sonnet')) {
+        const match = lower.match(/sonnet[_-](\d+)[_-](\d+)/);
+        const version = match ? `${match[1]}.${match[2]}` : null;
+        return { family: 'sonnet', version };
+    }
+
+    if (lower.includes('haiku')) {
+        const match = lower.match(/haiku[_-](\d+)[_-](\d+)/);
+        const version = match ? `${match[1]}.${match[2]}` : null;
+        return { family: 'haiku', version };
+    }
+
+    return { family: 'unknown', version: null };
+}
+
+// Compare version strings (e.g., "4.5" vs "4.0")
+// Returns: positive if v1 > v2, negative if v1 < v2, 0 if equal
+function compareVersions(v1, v2) {
+    const parts1 = v1.split('.').map(Number);
+    const parts2 = v2.split('.').map(Number);
+
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+        const p1 = parts1[i] || 0;
+        const p2 = parts2[i] || 0;
+        if (p1 !== p2) return p1 - p2;
+    }
+    return 0;
+}
+
 // Format timestamp
 function formatTime(timestamp) {
     const date = new Date(timestamp);
@@ -775,26 +817,135 @@ function calculateModelTotalTokens(modelData) {
            (modelData.cacheCreationTokens || 0);
 }
 
-// Helper function: Filter and sort models by total tokens
-function filterAndSortModelsByTokens(byModel) {
-    if (!byModel || Object.keys(byModel).length === 0) {
-        return [];
+// Helper function: Aggregate models by family (opus, sonnet, haiku) with percentages
+// Always returns 3 families in fixed order, even if they have 0 tokens
+function aggregateModelsByFamily(byModel) {
+    // Initialize all 3 families with zero values
+    const families = {
+        opus: {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+            cost: 0,
+            displayName: 'Opus',
+            highestVersion: null,
+            percentage: 0,
+            isActive: false
+        },
+        sonnet: {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+            cost: 0,
+            displayName: 'Sonnet',
+            highestVersion: null,
+            percentage: 0,
+            isActive: false
+        },
+        haiku: {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+            cost: 0,
+            displayName: 'Haiku',
+            highestVersion: null,
+            percentage: 0,
+            isActive: false
+        }
+    };
+
+    // If byModel exists and has data, aggregate it
+    if (byModel && typeof byModel === 'object') {
+        Object.entries(byModel).forEach(([modelFullName, data]) => {
+            const { family, version } = getModelFamily(modelFullName);
+
+            // Skip unknown models
+            if (family === 'unknown') return;
+
+            const familyData = families[family];
+
+            // Aggregate token counts
+            familyData.inputTokens += (data.inputTokens || 0);
+            familyData.outputTokens += (data.outputTokens || 0);
+            familyData.cacheReadTokens += (data.cacheReadTokens || 0);
+            familyData.cacheCreationTokens += (data.cacheCreationTokens || 0);
+            familyData.cost += (data.cost || 0);
+
+            // Track highest version for display name
+            if (version) {
+                if (!familyData.highestVersion ||
+                    compareVersions(version, familyData.highestVersion) > 0) {
+                    familyData.highestVersion = version;
+                    // Update display name with version
+                    familyData.displayName = `${family.charAt(0).toUpperCase() + family.slice(1)} ${version}`;
+                }
+            }
+        });
     }
 
-    return Object.entries(byModel)
-        .filter(([_, data]) => calculateModelTotalTokens(data) > 0)
-        .sort((a, b) => calculateModelTotalTokens(b[1]) - calculateModelTotalTokens(a[1]));
+    // Calculate total tokens across all families
+    const totalTokens = Object.values(families).reduce((sum, fam) =>
+        sum + calculateModelTotalTokens(fam), 0);
+
+    // Calculate percentage for each family and find most active
+    let mostActiveFamily = null;
+    let highestTokenCount = 0;
+
+    Object.values(families).forEach(familyData => {
+        const familyTotalTokens = calculateModelTotalTokens(familyData);
+
+        // Calculate percentage
+        if (totalTokens > 0) {
+            familyData.percentage = (familyTotalTokens / totalTokens) * 100;
+        } else {
+            familyData.percentage = 0;
+        }
+
+        // Track most active family
+        if (familyTotalTokens > highestTokenCount) {
+            highestTokenCount = familyTotalTokens;
+            mostActiveFamily = familyData;
+        }
+    });
+
+    // Mark the most active family (only if it has tokens)
+    if (mostActiveFamily && highestTokenCount > 0) {
+        mostActiveFamily.isActive = true;
+    }
+
+    // Always return 3 families in fixed order: Opus, Sonnet, Haiku
+    return [
+        ['opus', families.opus],
+        ['sonnet', families.sonnet],
+        ['haiku', families.haiku]
+    ];
 }
 
 // Helper function: Render a single model column
-function renderModelColumn(model, data) {
-    const input = data.inputTokens || 0;
-    const output = data.outputTokens || 0;
-    const total = calculateModelTotalTokens(data);
+function renderModelColumn(familyKey, familyData) {
+    const input = familyData.inputTokens || 0;
+    const output = familyData.outputTokens || 0;
+    const total = calculateModelTotalTokens(familyData);
+    const displayName = familyData.displayName || 'Unknown';
+    const percentage = (familyData.percentage || 0).toFixed(1);
+    const isActive = familyData.isActive || false;
+
+    // Add CSS classes
+    const zeroTokenClass = total === 0 ? 'zero-tokens' : '';
+    const activeClass = isActive ? 'active-model' : '';
+
+    // Activity arrow (only show if active)
+    const arrowHtml = isActive ? '<span class="activity-arrow">↑</span>' : '';
 
     return `
-        <div class="session-model-column">
-            <div class="model-column-header">${formatModelName(model)}</div>
+        <div class="session-model-column ${zeroTokenClass} ${activeClass}">
+            <div class="model-column-header">
+                ${displayName} (${percentage}%)
+                ${arrowHtml}
+            </div>
             <div class="model-column-divider"></div>
             <div class="model-column-value">
                 ${formatNumber(input)}/${formatNumber(output)}/${formatNumber(total)}
@@ -809,9 +960,9 @@ function renderSessionCard(session) {
     const statusClass = session.isActive ? 'active' : '';
     const cardClass = session.isActive ? 'session-card active' : 'session-card';
 
-    const modelsWithData = filterAndSortModelsByTokens(session.byModel);
-    const modelColumnsHtml = modelsWithData
-        .map(([model, data]) => renderModelColumn(model, data))
+    const modelFamilies = aggregateModelsByFamily(session.byModel);
+    const modelColumnsHtml = modelFamilies
+        .map(([familyKey, familyData]) => renderModelColumn(familyKey, familyData))
         .join('');
 
     return `
@@ -871,8 +1022,8 @@ function renderSessions() {
     sessionsTotal.textContent = `${sessions.length} total`;
     sessionsActive.textContent = `${activeSessions} active`;
 
-    // Sort by lastSeen (most recent first) and render
-    sessions.sort((a, b) => b.lastSeen - a.lastSeen);
+    // Sort by startTime (newest session first) and render
+    sessions.sort((a, b) => b.startTime - a.startTime);
     sessionsList.innerHTML = sessions.map(renderSessionCard).join('');
 }
 
