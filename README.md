@@ -61,7 +61,7 @@ sudo apt-get install rethinkdb
 
 **Windows** or **Docker** (easiest for Windows):
 ```bash
-docker run -d --name rethinkdb -p 28015:28015 -p 8080:8080 rethinkdb
+docker run -d --name rethinkdb -p 28015:28015 -p 8081:8080 rethinkdb
 ```
 
 **Other platforms**: See [RethinkDB installation docs](https://rethinkdb.com/docs/install/)
@@ -79,7 +79,7 @@ docker start rethinkdb
 
 You should see RethinkDB start on:
 - **Port 28015**: Database connections (this is what the dashboard uses)
-- **Port 8080**: Web admin UI (optional, for database exploration)
+- **Port 8081**: Web admin UI (optional, for database exploration)
 
 ### 3. Clone and Install
 
@@ -261,7 +261,7 @@ The server now provides clear error messages with exact commands to fix the issu
 rethinkdb
 
 # Option 2: Docker
-docker run -d --name rethinkdb -p 28015:28015 -p 8080:8080 rethinkdb
+docker run -d --name rethinkdb -p 28015:28015 -p 8081:8080 rethinkdb
 
 # Option 3: Start existing Docker container
 docker start rethinkdb

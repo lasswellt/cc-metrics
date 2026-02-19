@@ -454,6 +454,17 @@ function updateStats(data) {
 
     // Productivity - already uses formatNumber which now handles rounding
     document.getElementById('productivity-ratio').textContent = formatNumber(data.productivityRatio || 0);
+
+    // Git & Code Activity stats
+    document.getElementById('pull-requests').textContent = formatNumber(data.pullRequests || 0);
+    document.getElementById('commits').textContent = formatNumber(data.commits || 0);
+    document.getElementById('lines-added').textContent = '+' + formatNumber(data.linesAdded || 0);
+    document.getElementById('lines-removed').textContent = '-' + formatNumber(data.linesRemoved || 0);
+
+    // Edit accept rate
+    const totalEdits = (data.codeEditAccepts || 0) + (data.codeEditRejects || 0);
+    const acceptRate = totalEdits > 0 ? ((data.codeEditAccepts || 0) / totalEdits * 100).toFixed(1) : '0';
+    document.getElementById('edit-accept-rate').textContent = `${acceptRate}%`;
 }
 
 // Update tokens by type pie chart
@@ -703,6 +714,18 @@ function renderEventItem(event) {
         ? `<span class="severity-badge severity-${escapeHtml(event.severity).toLowerCase()}">${escapeHtml(event.severity)}</span>`
         : '';
 
+    // Display enrichment badges
+    let displayBadges = '';
+    if (event.attributes && event.attributes._display) {
+        const d = event.attributes._display;
+        if (d.model) displayBadges += `<span class="event-detail model">${escapeHtml(d.model)}</span>`;
+        if (d.tool) displayBadges += `<span class="event-detail tool">${escapeHtml(d.tool)}</span>`;
+        if (d.cost !== undefined) displayBadges += `<span class="event-detail cost">$${parseFloat(d.cost).toFixed(4)}</span>`;
+        if (d.success !== undefined) displayBadges += `<span class="event-detail ${d.success ? 'success' : 'failure'}">${d.success ? 'OK' : 'FAIL'}</span>`;
+        if (d.duration !== undefined) displayBadges += `<span class="event-detail duration">${d.duration}ms</span>`;
+        if (d.error) displayBadges += `<span class="event-detail error">${escapeHtml(String(d.error).substring(0, 50))}</span>`;
+    }
+
     const expandSection = hasMoreThanTwoLines ? `
         <div class="event-body-full" style="display: none;">
             ${remainingLines.map(line => `<div class="event-line">${escapeHtml(line)}</div>`).join('')}
@@ -717,6 +740,7 @@ function renderEventItem(event) {
             <div class="event-header">
                 <span class="event-type">${escapeHtml(event.type)}</span>
                 ${severityBadge}
+                ${displayBadges}
                 <span class="event-time">${formatRelativeTime(event.timestamp)}</span>
             </div>
             <div class="event-body">
@@ -1027,6 +1051,107 @@ function renderSessions() {
     sessionsList.innerHTML = sessions.map(renderSessionCard).join('');
 }
 
+// Handle teams snapshot/update
+function handleTeamsUpdate(teamsData) {
+    teamsMap.clear();
+    if (teamsData && typeof teamsData === 'object') {
+        Object.entries(teamsData).forEach(([name, team]) => {
+            teamsMap.set(name, team);
+        });
+    }
+    renderTeams();
+}
+
+function renderTeamCard(teamName, team) {
+    const members = team.members || [];
+    const tasks = team.tasks || [];
+    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+    const totalTasks = tasks.length;
+    const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    // Calculate team totals
+    let totalCost = 0;
+    let totalTokens = 0;
+    members.forEach(m => {
+        if (m.sessionStats) {
+            totalCost += m.sessionStats.totalCost || 0;
+            totalTokens += m.sessionStats.totalTokens || 0;
+        }
+    });
+
+    const membersHtml = members.map(member => {
+        const isActive = member.status === 'active';
+        const stats = member.sessionStats || {};
+        return `
+            <div class="team-member ${isActive ? 'active' : ''}">
+                <span class="member-status"></span>
+                <span class="member-name">${escapeHtml(member.name || 'Unknown')}</span>
+                <span class="member-role">${escapeHtml(member.agentType || 'agent')}</span>
+                <span class="member-cost">$${(stats.totalCost || 0).toFixed(2)}</span>
+                <span class="member-tokens">${formatNumber(stats.totalTokens || 0)} tok</span>
+            </div>
+        `;
+    }).join('');
+
+    const taskListHtml = tasks.slice(0, 5).map(task => {
+        const statusIcon = task.status === 'completed' ? '&#10003;' : task.status === 'in_progress' ? '&#9881;' : '&#9675;';
+        const statusClass = task.status || 'pending';
+        return `<div class="task-item ${statusClass}"><span class="task-status-icon">${statusIcon}</span> ${escapeHtml(task.subject || task.description || 'Untitled')}</div>`;
+    }).join('');
+
+    return `
+        <div class="team-card">
+            <div class="team-card-header">
+                <h3>${escapeHtml(teamName)}</h3>
+                <div class="team-card-stats">
+                    <span>${members.length} members</span>
+                    <span class="separator">|</span>
+                    <span>$${totalCost.toFixed(2)}</span>
+                </div>
+            </div>
+            <div class="team-members">${membersHtml}</div>
+            ${totalTasks > 0 ? `
+                <div class="task-progress">
+                    <div class="task-progress-bar">
+                        <div class="task-progress-fill" style="width: ${progressPct}%"></div>
+                    </div>
+                    <span class="task-progress-label">${completedTasks}/${totalTasks} tasks (${progressPct}%)</span>
+                </div>
+                <div class="task-list-compact">${taskListHtml}</div>
+            ` : ''}
+        </div>
+    `;
+}
+
+function renderTeams() {
+    const teamsSection = document.getElementById('teams-section');
+    const teamsList = document.getElementById('teams-list');
+    const teamsTotal = document.getElementById('teams-total');
+    const teamsActiveMembers = document.getElementById('teams-active-members');
+
+    if (teamsMap.size === 0) {
+        teamsSection.classList.add('hidden');
+        return;
+    }
+
+    teamsSection.classList.remove('hidden');
+    teamsTotal.textContent = `${teamsMap.size} team${teamsMap.size !== 1 ? 's' : ''}`;
+
+    let activeCount = 0;
+    teamsMap.forEach(team => {
+        (team.members || []).forEach(m => {
+            if (m.status === 'active') activeCount++;
+        });
+    });
+    teamsActiveMembers.textContent = `${activeCount} active`;
+
+    const cards = [];
+    teamsMap.forEach((team, name) => {
+        cards.push(renderTeamCard(name, team));
+    });
+    teamsList.innerHTML = cards.join('');
+}
+
 // OLD updateSessions function - kept for backward compatibility during transition
 // Old updateSessions function removed - now using renderSessions() with changefeed data
 
@@ -1063,6 +1188,26 @@ async function fetchData() {
             updateCostTimeline(metricsData.costHistory);
         }
 
+        // Fetch teams data
+        try {
+            const teamsResponse = await fetch('/api/teams');
+            const teamsData = await teamsResponse.json();
+            handleTeamsUpdate(teamsData);
+        } catch (e) {
+            console.log('Teams endpoint not available');
+        }
+
+        // Fetch OAuth usage
+        try {
+            const oauthResponse = await fetch('/api/oauth-usage');
+            const oauthData = await oauthResponse.json();
+            if (oauthData.success !== false) {
+                updateOAuthUsageDisplay(oauthData);
+            }
+        } catch (e) {
+            console.log('OAuth usage endpoint not available');
+        }
+
         // Fetch events with timeframe parameter (still using polling for events)
         const eventsResponse = await fetch(`/api/events?timeframe=${timeframe}`);
         const eventsData = await eventsResponse.json();
@@ -1088,6 +1233,9 @@ let wsReconnectTimer = null;
 
 // Session state management
 const sessionsMap = new Map();
+
+// Team state management
+const teamsMap = new Map();
 
 // Activity timeline tracking (2 minutes = 120000ms)
 const TIMELINE_DURATION = 120000; // 2 minutes in milliseconds
@@ -1337,6 +1485,12 @@ class MetricsDashboard {
       gitFailures: 0,
       filesModified: 0,
       toolCalls: 0,
+      pullRequests: 0,
+      commits: 0,
+      codeEditAccepts: 0,
+      codeEditRejects: 0,
+      linesAdded: 0,
+      linesRemoved: 0,
       byModel: {}
     };
 
@@ -1354,6 +1508,12 @@ class MetricsDashboard {
       aggregated.gitFailures += bucket.gitFailures || 0;
       aggregated.filesModified += bucket.filesModified || 0;
       aggregated.toolCalls += bucket.toolCalls || 0;
+      aggregated.pullRequests += bucket.pullRequests || 0;
+      aggregated.commits += bucket.commits || 0;
+      aggregated.codeEditAccepts += bucket.codeEditAccepts || 0;
+      aggregated.codeEditRejects += bucket.codeEditRejects || 0;
+      aggregated.linesAdded += bucket.linesAdded || 0;
+      aggregated.linesRemoved += bucket.linesRemoved || 0;
 
       // Merge byModel
       if (bucket.byModel) {
@@ -1511,6 +1671,14 @@ function connectWebSocket() {
                 // Handle metric changefeed updates
                 if (metricsDashboard) {
                     metricsDashboard.onMessage(message);
+                }
+            }
+            else if (message.type === 'team_update' || message.type === 'teams_snapshot') {
+                handleTeamsUpdate(message.data);
+            }
+            else if (message.type === 'oauth_usage_update') {
+                if (message.data) {
+                    updateOAuthUsageDisplay(message.data);
                 }
             }
             else if (message.type === 'metrics' || message.type === 'events') {
@@ -1768,6 +1936,75 @@ function updateProjectionDisplay(elementId, projection) {
     const icon = severity === 'critical' ? '⚠' : '~';
     element.textContent = `${icon} ${timeDisplay} to 100% (+${hourlyRate.toFixed(2)}%/hr)`;
     element.className = `usage-stat-projection ${severity}`;
+}
+
+// Update OAuth usage display (from /api/oauth-usage endpoint)
+function updateOAuthUsageDisplay(data) {
+    // Show usage section
+    document.getElementById('claude-usage-section').style.display = 'block';
+
+    // Update 5-hour
+    if (data.five_hour) {
+        document.getElementById('account-five-hour').textContent = `${data.five_hour.utilization}%`;
+        if (data.five_hour.resets_at) {
+            const resetsIn = new Date(data.five_hour.resets_at) - Date.now();
+            document.getElementById('account-five-hour-reset').textContent = `Resets in ${formatTimeRemaining(resetsIn)}`;
+        }
+        const pacingEl = document.getElementById('account-five-hour-pacing');
+        if (pacingEl && data.five_hour.pacing_target !== undefined) {
+            pacingEl.textContent = `Pacing: ${data.five_hour.pacing_target.toFixed(1)}%`;
+            pacingEl.className = `pacing-indicator ${data.five_hour.status || 'under'}`;
+        }
+    }
+
+    // Update 7-day
+    if (data.seven_day) {
+        document.getElementById('account-seven-day').textContent = `${data.seven_day.utilization}%`;
+        if (data.seven_day.resets_at) {
+            const resetsIn = new Date(data.seven_day.resets_at) - Date.now();
+            document.getElementById('account-seven-day-reset').textContent = `Resets in ${formatTimeRemaining(resetsIn)}`;
+        }
+        const pacingEl = document.getElementById('account-seven-day-pacing');
+        if (pacingEl && data.seven_day.pacing_target !== undefined) {
+            pacingEl.textContent = `Pacing: ${data.seven_day.pacing_target.toFixed(1)}%`;
+            pacingEl.className = `pacing-indicator ${data.seven_day.status || 'under'}`;
+        }
+    }
+
+    // Update Opus
+    const opusEl = document.getElementById('account-opus');
+    if (opusEl) {
+        if (data.seven_day_opus) {
+            opusEl.textContent = `${data.seven_day_opus.utilization}%`;
+            const opusResetEl = document.getElementById('account-opus-reset');
+            if (opusResetEl && data.seven_day_opus.resets_at) {
+                const resetsIn = new Date(data.seven_day_opus.resets_at) - Date.now();
+                opusResetEl.textContent = `Resets in ${formatTimeRemaining(resetsIn)}`;
+            }
+        } else {
+            opusEl.textContent = 'N/A';
+        }
+    }
+
+    // Update Sonnet
+    if (data.seven_day_sonnet) {
+        document.getElementById('account-sonnet').textContent = `${data.seven_day_sonnet.utilization}%`;
+        if (data.seven_day_sonnet.resets_at) {
+            const resetsIn = new Date(data.seven_day_sonnet.resets_at) - Date.now();
+            document.getElementById('account-sonnet-reset').textContent = `Resets in ${formatTimeRemaining(resetsIn)}`;
+        }
+    }
+
+    // Update OAuth status badge
+    const oauthBadge = document.getElementById('oauth-status-badge');
+    if (oauthBadge) {
+        oauthBadge.textContent = 'Connected';
+        oauthBadge.className = 'oauth-status-badge active';
+    }
+
+    // Update last updated
+    document.getElementById('account-last-update').textContent = new Date().toLocaleTimeString();
+    updateClaudeStatus('Connected (OAuth)', 'active');
 }
 
 // Update Claude.ai usage display

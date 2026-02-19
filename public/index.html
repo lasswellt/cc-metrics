@@ -122,6 +122,14 @@
                         <p class="help-text-small">How often to refresh Claude.ai usage data (5-300 seconds)</p>
                     </div>
 
+                    <div class="form-group form-group-spaced">
+                        <h3>OAuth Token Status</h3>
+                        <div class="oauth-status-display">
+                            <span class="oauth-status-badge" id="oauth-status-badge">Checking...</span>
+                            <p class="help-text-small" id="oauth-status-text">Auto-detected from Claude Code credentials</p>
+                        </div>
+                    </div>
+
                     <div id="session-status" class="status-message"></div>
                 </div>
             </div>
@@ -137,6 +145,7 @@
                     <div class="usage-stat-value" id="account-five-hour">0%</div>
                     <div class="usage-stat-sublabel" id="account-five-hour-reset">Resets in --</div>
                     <div class="usage-stat-projection" id="account-five-hour-projection">Calculating...</div>
+                    <div class="pacing-indicator" id="account-five-hour-pacing"></div>
                 </div>
                 <div class="usage-stat-card">
                     <div class="usage-stat-label">7-Day Usage</div>
@@ -144,12 +153,18 @@
                     <div class="usage-stat-value" id="account-seven-day">0%</div>
                     <div class="usage-stat-sublabel" id="account-seven-day-reset">Resets in --</div>
                     <div class="usage-stat-projection" id="account-seven-day-projection">Calculating...</div>
+                    <div class="pacing-indicator" id="account-seven-day-pacing"></div>
                 </div>
                 <div class="usage-stat-card">
                     <div class="usage-stat-label">Sonnet (7-Day)</div>
                     <canvas id="sonnet-sparkline" class="usage-sparkline" width="300" height="120"></canvas>
                     <div class="usage-stat-value" id="account-sonnet">0%</div>
                     <div class="usage-stat-sublabel" id="account-sonnet-reset">Resets in --</div>
+                </div>
+                <div class="usage-stat-card">
+                    <div class="usage-stat-label">Opus (7-Day)</div>
+                    <div class="usage-stat-value" id="account-opus">N/A</div>
+                    <div class="usage-stat-sublabel" id="account-opus-reset"></div>
                 </div>
                 <div class="usage-stat-card">
                     <div class="usage-stat-label">Last Updated</div>
@@ -160,6 +175,19 @@
                 <span class="claude-status-indicator" id="claude-status"></span>
                 <span id="claude-status-text">Checking connection...</span>
             </div>
+        </div>
+
+        <!-- Agent Teams Section -->
+        <div id="teams-section" class="teams-section hidden">
+            <div class="teams-header">
+                <h2>Agent Teams</h2>
+                <div class="teams-stats">
+                    <span id="teams-total">0 teams</span>
+                    <span class="separator">|</span>
+                    <span id="teams-active-members">0 active</span>
+                </div>
+            </div>
+            <div id="teams-list" class="teams-list"></div>
         </div>
 
         <!-- Terminal Sessions Section -->
@@ -236,6 +264,40 @@
                 <div class="stat-content">
                     <div class="stat-label">Lines of Code</div>
                     <div class="stat-value" id="lines-of-code">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Git & Code Activity Stats -->
+        <div class="git-stats-grid">
+            <div class="stat-card git-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Pull Requests</div>
+                    <div class="stat-value" id="pull-requests">0</div>
+                </div>
+            </div>
+            <div class="stat-card git-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Commits</div>
+                    <div class="stat-value" id="commits">0</div>
+                </div>
+            </div>
+            <div class="stat-card git-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Lines Added</div>
+                    <div class="stat-value positive" id="lines-added">+0</div>
+                </div>
+            </div>
+            <div class="stat-card git-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Lines Removed</div>
+                    <div class="stat-value negative" id="lines-removed">-0</div>
+                </div>
+            </div>
+            <div class="stat-card git-stat">
+                <div class="stat-content">
+                    <div class="stat-label">Edit Accept Rate</div>
+                    <div class="stat-value" id="edit-accept-rate">0%</div>
                 </div>
             </div>
         </div>

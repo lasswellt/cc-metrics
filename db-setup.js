@@ -126,6 +126,12 @@ async function setupDatabase(connection) {
         gitFailures: 0,
         filesModified: 0,
         toolCalls: 0,
+        pullRequests: 0,
+        commits: 0,
+        codeEditAccepts: 0,
+        codeEditRejects: 0,
+        linesAdded: 0,
+        linesRemoved: 0,
         byModel: {},
         lastUpdated: Date.now()
       }).run(connection);

@@ -1560,3 +1560,318 @@ footer code {
 .label-bold {
     font-weight: 600;
 }
+
+/* ============================================================================
+   Agent Teams Section
+   ============================================================================ */
+
+.teams-section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.teams-section.hidden {
+    display: none;
+}
+
+.teams-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: linear-gradient(135deg, rgba(103, 58, 183, 0.1), rgba(156, 39, 176, 0.05));
+    border-radius: var(--radius-md);
+    border-left: 3px solid #7c4dff;
+}
+
+.teams-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--color-text-primary);
+}
+
+.teams-stats {
+    display: flex;
+    gap: var(--spacing-sm);
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.teams-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.team-card {
+    background: linear-gradient(135deg, var(--color-bg-secondary-start), var(--color-bg-secondary-end));
+    border: 1px solid rgba(124, 77, 255, 0.2);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    transition: border-color var(--transition-fast);
+}
+
+.team-card:hover {
+    border-color: rgba(124, 77, 255, 0.4);
+}
+
+.team-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.team-card-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--color-text-primary);
+}
+
+.team-card-stats {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.team-members {
+    margin-bottom: var(--spacing-sm);
+}
+
+.team-member {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: 4px 0;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.team-member .member-status {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-round);
+    background: var(--color-accent-gray);
+    flex-shrink: 0;
+}
+
+.team-member.active .member-status {
+    background: var(--color-success);
+    box-shadow: 0 0 6px var(--color-success-shadow);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.team-member .member-name {
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    min-width: 80px;
+}
+
+.team-member .member-role {
+    color: var(--color-text-disabled);
+    font-size: 0.8rem;
+    flex: 1;
+}
+
+.team-member .member-cost,
+.team-member .member-tokens {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    min-width: 60px;
+    text-align: right;
+}
+
+.task-progress {
+    margin: var(--spacing-sm) 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.task-progress-bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.task-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7c4dff, #b388ff);
+    border-radius: 2px;
+    transition: width var(--transition-normal);
+}
+
+.task-progress-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.task-list-compact {
+    border-top: 1px solid var(--color-border-light);
+    padding-top: var(--spacing-xs);
+}
+
+.task-item {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    padding: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.task-item.completed {
+    color: var(--color-success);
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.task-item.in_progress {
+    color: var(--color-warning);
+}
+
+.task-status-icon {
+    font-size: 0.7rem;
+    width: 14px;
+    text-align: center;
+}
+
+/* ============================================================================
+   Git & Code Activity Stats
+   ============================================================================ */
+
+.git-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+}
+
+.git-stat {
+    border-left: 3px solid rgba(124, 77, 255, 0.3);
+}
+
+.stat-value.positive {
+    color: var(--color-success);
+}
+
+.stat-value.negative {
+    color: var(--color-error);
+}
+
+/* ============================================================================
+   Event Detail Badges
+   ============================================================================ */
+
+.event-detail {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    margin-left: 4px;
+}
+
+.event-detail.model {
+    background: rgba(33, 150, 243, 0.15);
+    color: #64b5f6;
+}
+
+.event-detail.tool {
+    background: rgba(156, 39, 176, 0.15);
+    color: #ce93d8;
+}
+
+.event-detail.cost {
+    background: rgba(255, 152, 0, 0.15);
+    color: #ffb74d;
+}
+
+.event-detail.success {
+    background: rgba(76, 175, 80, 0.15);
+    color: var(--color-success);
+}
+
+.event-detail.failure {
+    background: rgba(244, 67, 54, 0.15);
+    color: var(--color-error);
+}
+
+.event-detail.duration {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-muted);
+}
+
+.event-detail.error {
+    background: rgba(244, 67, 54, 0.15);
+    color: var(--color-error-light);
+}
+
+/* ============================================================================
+   Pacing Indicator & OAuth Status
+   ============================================================================ */
+
+.pacing-indicator {
+    font-size: 0.75rem;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.pacing-indicator.under {
+    color: var(--color-success);
+}
+
+.pacing-indicator.on_pace {
+    color: var(--color-warning);
+}
+
+.pacing-indicator.over {
+    color: var(--color-error);
+}
+
+.oauth-status-display {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+}
+
+.oauth-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-muted);
+}
+
+.oauth-status-badge.active {
+    background: rgba(76, 175, 80, 0.15);
+    color: var(--color-success);
+}
+
+.oauth-status-badge.error {
+    background: rgba(244, 67, 54, 0.15);
+    color: var(--color-error);
+}
+
+/* Responsive: Git stats grid */
+@media (max-width: 900px) {
+    .git-stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .teams-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .git-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
