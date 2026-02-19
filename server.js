@@ -1540,12 +1540,26 @@ app.post('/v1/logs', otlpRateLimiter, validateOTLPPayload, (req, res) => {
             }
 
             // Enrich event for dashboard display based on type
+            // Note: RethinkDB rejects undefined fields, so only include defined values
             if (eventType === 'claude_code.api_request') {
-              attributes._display = { model: attributes.model, cost: attributes.cost_usd, duration: attributes.duration_ms };
+              const d = {};
+              if (attributes.model !== undefined) d.model = attributes.model;
+              if (attributes.cost_usd !== undefined) d.cost = attributes.cost_usd;
+              if (attributes.duration_ms !== undefined) d.duration = attributes.duration_ms;
+              attributes._display = d;
             } else if (eventType === 'claude_code.tool_result') {
-              attributes._display = { tool: attributes.tool_name, success: attributes.success, duration: attributes.duration_ms, decision: attributes.decision };
+              const d = {};
+              if (attributes.tool_name !== undefined) d.tool = attributes.tool_name;
+              if (attributes.success !== undefined) d.success = attributes.success;
+              if (attributes.duration_ms !== undefined) d.duration = attributes.duration_ms;
+              if (attributes.decision !== undefined) d.decision = attributes.decision;
+              attributes._display = d;
             } else if (eventType === 'claude_code.api_error') {
-              attributes._display = { model: attributes.model, error: attributes.error, status: attributes.status_code };
+              const d = {};
+              if (attributes.model !== undefined) d.model = attributes.model;
+              if (attributes.error !== undefined) d.error = attributes.error;
+              if (attributes.status_code !== undefined) d.status = attributes.status_code;
+              attributes._display = d;
             }
 
             // Store event in-memory
