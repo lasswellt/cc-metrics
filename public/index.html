@@ -3,85 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Real-time Claude Code usage metrics and monitoring dashboard. Track token consumption, costs, active time, and performance metrics for your Claude AI development workflow.">
-    <meta name="keywords" content="Claude Code, metrics, monitoring, dashboard, AI, token usage, cost tracking, development tools, OpenTelemetry">
-    <meta name="author" content="Claude Code Metrics">
-    <meta name="theme-color" content="#667eea">
-    
-    <!-- OpenGraph / Social Media -->
-    <meta property="og:title" content="Claude Code Metrics Dashboard">
-    <meta property="og:description" content="Monitor Claude Code usage, token consumption, and costs in real-time">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Claude Code Metrics">
-    
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Claude Code Metrics Dashboard">
-    <meta name="twitter:description" content="Monitor Claude Code usage, token consumption, and costs in real-time">
-    
+    <meta name="description" content="Real-time Claude Code usage metrics and monitoring dashboard.">
+    <meta name="theme-color" content="#0a0a0f">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="icons.svg">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    
-    <title>Claude Code Metrics Dashboard</title>
+
+    <title>Claude Code Metrics</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
-<body>
+<body data-theme="bloomberg">
+    <script>(function(){var t=localStorage.getItem('dashboardTheme');if(t)document.body.setAttribute('data-theme',t);})()</script>
     <div class="container">
         <header>
             <h1>
-                <svg width="120" height="40" class="logo-svg">
-                    <use href="icons.svg?v=2#icon-logo"/>
-                </svg>
-                <span class="gradient-text">Claude Code Metrics</span>
+                <span class="gradient-text">CC-METRICS</span>
             </h1>
             <div class="header-right">
+                <div class="flex-row flex-gap-small">
+                    <label for="theme-select" class="lbl">THEME:</label>
+                    <select id="theme-select" class="select-styled">
+                        <option value="bloomberg">Terminal</option>
+                        <option value="glass">Glass</option>
+                        <option value="minimal">Minimal</option>
+                    </select>
+                </div>
+                <div class="flex-row flex-gap-small">
+                    <label for="data-timeframe-select" class="lbl">TF:</label>
+                    <select id="data-timeframe-select" class="select-styled">
+                        <option value="1h">1H</option>
+                        <option value="2h">2H</option>
+                        <option value="3h">3H</option>
+                        <option value="6h">6H</option>
+                        <option value="24h">24H</option>
+                        <option value="7d">7D</option>
+                        <option value="30d">30D</option>
+                        <option value="all" selected>ALL</option>
+                    </select>
+                </div>
                 <button id="refresh-btn" class="settings-btn" title="Refresh data">
-                    <svg width="20" height="20">
-                        <use href="icons.svg#icon-refresh"/>
-                    </svg>
+                    <svg width="14" height="14"><use href="icons.svg#icon-refresh"/></svg>
                 </button>
-                <button id="settings-btn" class="settings-btn" title="Configure Claude.ai">
-                    <svg width="20" height="20">
-                        <use href="icons.svg#icon-settings"/>
-                    </svg>
+                <button id="settings-btn" class="settings-btn" title="Configure">
+                    <svg width="14" height="14"><use href="icons.svg#icon-settings"/></svg>
                 </button>
                 <div class="status">
                     <span class="status-indicator" id="status"></span>
-                    <span id="last-update">Waiting for data...</span>
+                    <span id="last-update">Waiting...</span>
+                </div>
+                <div class="activity-timeline">
+                    <div class="timeline-bars" id="timeline-bars"></div>
                 </div>
             </div>
         </header>
-
-        <!-- Timeframe Control Bar -->
-        <div class="control-bar">
-            <div class="flex-row-wide">
-                <div class="flex-row flex-gap-small">
-                    <label for="data-timeframe-select" class="label-bold">Data Timeframe:</label>
-                    <select id="data-timeframe-select" class="select-styled">
-                        <option value="1h">Last 1 Hour</option>
-                        <option value="2h">Last 2 Hours</option>
-                        <option value="3h">Last 3 Hours</option>
-                        <option value="6h">Last 6 Hours</option>
-                        <option value="24h">Last 24 Hours</option>
-                        <option value="7d">Last 7 Days</option>
-                        <option value="30d">Last 30 Days</option>
-                        <option value="all" selected>All Time</option>
-                    </select>
-                </div>
-                <div class="margin-left-auto">
-                    <div class="text-muted-small">
-                        🔌 RethinkDB (WebSocket) | Port 28015
-                    </div>
-                    <div class="activity-timeline">
-                        <div class="timeline-track"></div>
-                        <div class="timeline-bars" id="timeline-bars"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Settings Modal -->
         <div id="settings-modal" class="modal">
@@ -94,349 +75,198 @@
                     <div class="instructions">
                         <h3>How to get your cookies:</h3>
                         <ol>
-                            <li>Open <a href="https://claude.ai/settings/usage" target="_blank">claude.ai/settings/usage</a> in your browser</li>
-                            <li>Make sure you're logged in and can see your usage</li>
-                            <li>Press <code>F12</code> to open Developer Tools</li>
-                            <li>Click the <strong>Console</strong> tab</li>
+                            <li>Open <a href="https://claude.ai/settings/usage" target="_blank">claude.ai/settings/usage</a></li>
+                            <li>Press <code>F12</code> → Console tab</li>
                             <li>Type <code>document.cookie</code> and press Enter</li>
-                            <li>Copy the ENTIRE output (it's a long string)</li>
-                            <li>Paste it in the box below and click Save</li>
+                            <li>Copy the entire output, paste below</li>
                         </ol>
-                        <p class="warning-text-small">
-                            ⚠️ <strong>Important:</strong> Make sure the output includes <code>cf_clearance</code> cookie or it won't work!
-                        </p>
+                        <p class="warning-text-small">Must include <code>cf_clearance</code> cookie</p>
                     </div>
                     <div class="form-group">
-                        <label for="session-key-input">All Cookies (paste entire cookie string):</label>
-                        <textarea id="session-key-input" placeholder="sessionKey=sk-ant-...; cf_clearance=...; ..." rows="4" class="textarea-monospace"></textarea>
+                        <label for="session-key-input">All Cookies:</label>
+                        <textarea id="session-key-input" placeholder="sessionKey=sk-ant-...; cf_clearance=..." rows="3" class="textarea-monospace"></textarea>
                         <div class="input-actions">
-                            <button id="test-session-btn" class="btn btn-secondary">Test Connection</button>
+                            <button id="test-session-btn" class="btn btn-secondary">Test</button>
                             <button id="save-session-btn" class="btn btn-primary">Save</button>
                             <button id="clear-session-btn" class="btn btn-secondary">Clear</button>
                         </div>
                     </div>
-
                     <div class="form-group form-group-spaced">
-                        <label for="polling-interval-input">Usage Polling Interval (seconds):</label>
+                        <label for="polling-interval-input">Polling Interval (sec):</label>
                         <input type="number" id="polling-interval-input" min="5" max="300" value="30" class="input-full-width">
-                        <p class="help-text-small">How often to refresh Claude.ai usage data (5-300 seconds)</p>
                     </div>
-
                     <div class="form-group form-group-spaced">
-                        <h3>OAuth Token Status</h3>
+                        <h3 style="font-size:10px;color:var(--gray);text-transform:uppercase;">OAuth Token Status</h3>
                         <div class="oauth-status-display">
                             <span class="oauth-status-badge" id="oauth-status-badge">Checking...</span>
                             <p class="help-text-small" id="oauth-status-text">Auto-detected from Claude Code credentials</p>
                         </div>
                     </div>
-
                     <div id="session-status" class="status-message"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Claude.ai Usage Section -->
-        <div id="claude-usage-section" class="usage-section hidden">
-            <h2>🌐 Claude.ai Web Usage</h2>
-            <div class="usage-stats-grid">
-                <div class="usage-stat-card">
-                    <div class="usage-stat-label">5-Hour Usage</div>
-                    <canvas id="five-hour-sparkline" class="usage-sparkline" width="300" height="120"></canvas>
-                    <div class="usage-stat-value" id="account-five-hour">0%</div>
-                    <div class="usage-stat-sublabel" id="account-five-hour-reset">Resets in --</div>
-                    <div class="usage-stat-projection" id="account-five-hour-projection">Calculating...</div>
-                    <div class="pacing-indicator" id="account-five-hour-pacing"></div>
-                </div>
-                <div class="usage-stat-card">
-                    <div class="usage-stat-label">7-Day Usage</div>
-                    <canvas id="seven-day-sparkline" class="usage-sparkline" width="300" height="120"></canvas>
-                    <div class="usage-stat-value" id="account-seven-day">0%</div>
-                    <div class="usage-stat-sublabel" id="account-seven-day-reset">Resets in --</div>
-                    <div class="usage-stat-projection" id="account-seven-day-projection">Calculating...</div>
-                    <div class="pacing-indicator" id="account-seven-day-pacing"></div>
-                </div>
-                <div class="usage-stat-card">
-                    <div class="usage-stat-label">Sonnet (7-Day)</div>
-                    <canvas id="sonnet-sparkline" class="usage-sparkline" width="300" height="120"></canvas>
-                    <div class="usage-stat-value" id="account-sonnet">0%</div>
-                    <div class="usage-stat-sublabel" id="account-sonnet-reset">Resets in --</div>
-                </div>
-                <div class="usage-stat-card">
-                    <div class="usage-stat-label">Opus (7-Day)</div>
-                    <div class="usage-stat-value" id="account-opus">N/A</div>
-                    <div class="usage-stat-sublabel" id="account-opus-reset"></div>
-                </div>
-                <div class="usage-stat-card">
-                    <div class="usage-stat-label">Last Updated</div>
-                    <div class="usage-stat-value" id="account-last-update">Never</div>
-                </div>
-            </div>
-            <div class="usage-status">
-                <span class="claude-status-indicator" id="claude-status"></span>
-                <span id="claude-status-text">Checking connection...</span>
-            </div>
-        </div>
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
 
-        <!-- Agent Teams Section -->
-        <div id="teams-section" class="teams-section hidden">
-            <div class="teams-header">
-                <h2>Agent Teams</h2>
-                <div class="teams-stats">
-                    <span id="teams-total">0 teams</span>
-                    <span class="separator">|</span>
-                    <span id="teams-active-members">0 active</span>
+            <!-- Stat Bars -->
+            <div class="stat-bars">
+                <!-- Overview Stats -->
+                <div class="panel stat-row" id="overview-stats">
+                    <span class="lbl">SESSIONS</span><span class="val cyan" id="session-count">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">COST</span><span class="val amber" id="total-cost">$0.00</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">LOC</span><span class="val green" id="lines-of-code">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">CLI</span><span class="val" id="active-time-cli">0s</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">PLAN</span><span class="val" id="active-time-planning">0s</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">PROD</span><span class="val" id="productivity-ratio">0</span>
                 </div>
-            </div>
-            <div id="teams-list" class="teams-list"></div>
-        </div>
 
-        <!-- Terminal Sessions Section -->
-        <div id="sessions-section" class="sessions-section hidden">
-            <div class="sessions-header">
-                <h2>💻 Terminal Sessions</h2>
-                <div class="sessions-stats">
-                    <span id="sessions-total">0 total</span>
-                    <span class="separator">•</span>
-                    <span id="sessions-active">0 active</span>
+                <!-- Token Stats -->
+                <div class="panel stat-row" id="token-stats">
+                    <span class="lbl">IN</span><span class="val cyan" id="input-tokens">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">OUT</span><span class="val cyan" id="output-tokens">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">CACHE.R</span><span class="val" id="cache-read">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">CACHE.W</span><span class="val" id="cache-creation">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">EFF</span><span class="val green" id="cache-efficiency">0%</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">$/1K</span><span class="val amber" id="cost-per-1k">$0.00</span>
                 </div>
-            </div>
-            <div id="sessions-list" class="sessions-list">
-                <div class="no-data">No sessions detected yet. Start using Claude Code to see your terminal sessions here.</div>
-            </div>
-        </div>
 
-        <!-- Main Stats Row -->
-        <div class="main-stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <svg width="32" height="32">
-                        <use href="icons.svg#icon-sessions"/>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-label">Sessions</div>
-                    <div class="stat-value" id="session-count">0</div>
+                <!-- Git Stats -->
+                <div class="panel stat-row" id="git-stats">
+                    <span class="lbl">PR</span><span class="val" id="pull-requests">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">COMMITS</span><span class="val" id="commits">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">+LINES</span><span class="val green" id="lines-added">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">-LINES</span><span class="val red" id="lines-removed">0</span>
+                    <span class="pipe">|</span>
+                    <span class="lbl">ACCEPT</span><span class="val" id="edit-accept-rate">0%</span>
                 </div>
             </div>
 
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <svg width="32" height="32">
-                        <use href="icons.svg#icon-cli-time"/>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-label">Active Time (CLI)</div>
-                    <div class="stat-value" id="active-time-cli">0m</div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <svg width="32" height="32">
-                        <use href="icons.svg#icon-planning-time"/>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-label">Active Time (Planning)</div>
-                    <div class="stat-value" id="active-time-planning">0m</div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <svg width="32" height="32">
-                        <use href="icons.svg#icon-cost"/>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-label">Total Cost</div>
-                    <div class="stat-value" id="total-cost">$0.00</div>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <svg width="32" height="32">
-                        <use href="icons.svg#icon-lines-code"/>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-label">Lines of Code</div>
-                    <div class="stat-value" id="lines-of-code">0</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Git & Code Activity Stats -->
-        <div class="git-stats-grid">
-            <div class="stat-card git-stat">
-                <div class="stat-content">
-                    <div class="stat-label">Pull Requests</div>
-                    <div class="stat-value" id="pull-requests">0</div>
-                </div>
-            </div>
-            <div class="stat-card git-stat">
-                <div class="stat-content">
-                    <div class="stat-label">Commits</div>
-                    <div class="stat-value" id="commits">0</div>
-                </div>
-            </div>
-            <div class="stat-card git-stat">
-                <div class="stat-content">
-                    <div class="stat-label">Lines Added</div>
-                    <div class="stat-value positive" id="lines-added">+0</div>
-                </div>
-            </div>
-            <div class="stat-card git-stat">
-                <div class="stat-content">
-                    <div class="stat-label">Lines Removed</div>
-                    <div class="stat-value negative" id="lines-removed">-0</div>
-                </div>
-            </div>
-            <div class="stat-card git-stat">
-                <div class="stat-content">
-                    <div class="stat-label">Edit Accept Rate</div>
-                    <div class="stat-value" id="edit-accept-rate">0%</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Token Stats Row -->
-        <div class="token-stats-grid">
-            <div class="stat-card token-stat">
-                <div class="stat-content">
-                    <div class="stat-label">
-                        <svg width="16" height="16" class="icon-inline">
-                            <use href="icons.svg#icon-input-token"/>
-                        </svg>
-                        Input Tokens
+            <!-- Claude.ai Usage Section -->
+            <div id="claude-usage-section" class="usage-section hidden">
+                <h2>CLAUDE.AI WEB USAGE</h2>
+                <div class="usage-stats-grid">
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-label">5-Hour</div>
+                        <canvas id="five-hour-sparkline" class="usage-sparkline" width="300" height="120"></canvas>
+                        <div class="usage-stat-value" id="account-five-hour">0%</div>
+                        <div class="usage-stat-sublabel" id="account-five-hour-reset">Resets in --</div>
+                        <div class="usage-stat-projection" id="account-five-hour-projection">--</div>
+                        <div class="pacing-indicator" id="account-five-hour-pacing"></div>
                     </div>
-                    <div class="stat-value" id="input-tokens">0</div>
-                </div>
-            </div>
-
-            <div class="stat-card token-stat">
-                <div class="stat-content">
-                    <div class="stat-label">
-                        <svg width="16" height="16" class="icon-inline">
-                            <use href="icons.svg#icon-output-token"/>
-                        </svg>
-                        Output Tokens
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-label">7-Day</div>
+                        <canvas id="seven-day-sparkline" class="usage-sparkline" width="300" height="120"></canvas>
+                        <div class="usage-stat-value" id="account-seven-day">0%</div>
+                        <div class="usage-stat-sublabel" id="account-seven-day-reset">Resets in --</div>
+                        <div class="usage-stat-projection" id="account-seven-day-projection">--</div>
+                        <div class="pacing-indicator" id="account-seven-day-pacing"></div>
                     </div>
-                    <div class="stat-value" id="output-tokens">0</div>
-                </div>
-            </div>
-
-            <div class="stat-card token-stat">
-                <div class="stat-content">
-                    <div class="stat-label">
-                        <svg width="16" height="16" class="icon-inline">
-                            <use href="icons.svg#icon-cache-read"/>
-                        </svg>
-                        Cache Read
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-label">Sonnet 7D</div>
+                        <canvas id="sonnet-sparkline" class="usage-sparkline" width="300" height="120"></canvas>
+                        <div class="usage-stat-value" id="account-sonnet">0%</div>
+                        <div class="usage-stat-sublabel" id="account-sonnet-reset">Resets in --</div>
                     </div>
-                    <div class="stat-value" id="cache-read">0</div>
-                </div>
-            </div>
-
-            <div class="stat-card token-stat">
-                <div class="stat-content">
-                    <div class="stat-label">
-                        <svg width="16" height="16" class="icon-inline">
-                            <use href="icons.svg#icon-cache-creation"/>
-                        </svg>
-                        Cache Creation
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-label">Opus 7D</div>
+                        <div class="usage-stat-value" id="account-opus">N/A</div>
+                        <div class="usage-stat-sublabel" id="account-opus-reset"></div>
                     </div>
-                    <div class="stat-value" id="cache-creation">0</div>
-                </div>
-            </div>
-
-            <div class="stat-card token-stat highlight">
-                <div class="stat-content">
-                    <div class="stat-label">
-                        <svg width="16" height="16" class="icon-inline">
-                            <use href="icons.svg#icon-total-tokens"/>
-                        </svg>
-                        Cache Efficiency
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-label">Updated</div>
+                        <div class="usage-stat-value" id="account-last-update">Never</div>
                     </div>
-                    <div class="stat-value" id="cache-efficiency">0%</div>
+                </div>
+                <div class="usage-status">
+                    <span class="claude-status-indicator" id="claude-status"></span>
+                    <span id="claude-status-text">Checking...</span>
                 </div>
             </div>
 
-            <div class="stat-card token-stat">
-                <div class="stat-content">
-                    <div class="stat-label">
-                        <svg width="16" height="16" class="icon-inline">
-                            <use href="icons.svg#icon-cost"/>
-                        </svg>
-                        Cost per 1K Output
+            <!-- Agent Teams Section -->
+            <div id="teams-section" class="teams-section hidden">
+                <div class="teams-header">
+                    <h2>AGENT TEAMS</h2>
+                    <div class="teams-stats">
+                        <span id="teams-total">0 teams</span>
+                        <span class="separator">|</span>
+                        <span id="teams-active-members">0 active</span>
                     </div>
-                    <div class="stat-value cost" id="cost-per-1k">$0.00</div>
+                </div>
+                <div id="teams-list" class="teams-list"></div>
+            </div>
+
+            <!-- Charts Area -->
+            <div class="charts-area">
+                <div class="panel">
+                    <div class="panel-title">TOKEN USAGE</div>
+                    <canvas id="token-usage-timeline"></canvas>
+                </div>
+                <div class="panel">
+                    <div class="panel-title">COST TIMELINE</div>
+                    <canvas id="cost-timeline"></canvas>
+                </div>
+                <div class="panel">
+                    <div class="panel-title">BY TYPE</div>
+                    <canvas id="tokens-by-type-chart"></canvas>
+                </div>
+                <div class="panel">
+                    <div class="panel-title">BY MODEL</div>
+                    <canvas id="tokens-by-model-chart"></canvas>
+                </div>
+                <div class="panel">
+                    <div class="panel-title">TIME DIST</div>
+                    <canvas id="time-distribution-chart"></canvas>
                 </div>
             </div>
-        </div>
 
-        <!-- Charts Row 1: Breakdowns and Productivity -->
-        <div class="charts-grid-3">
-            <div class="chart-card">
-                <h2>Tokens by Type</h2>
-                <canvas id="tokens-by-type-chart"></canvas>
-            </div>
-
-            <div class="chart-card">
-                <h2>Tokens by Model</h2>
-                <canvas id="tokens-by-model-chart"></canvas>
-            </div>
-
-            <div class="chart-card productivity">
-                <h2>Productivity Ratio</h2>
-                <div class="productivity-gauge">
-                    <div class="gauge-value" id="productivity-ratio">0</div>
-                    <div class="gauge-label">tokens/sec</div>
+            <!-- Sessions Panel -->
+            <div class="sessions-area">
+                <div id="sessions-section" class="sessions-section hidden">
+                    <div class="sessions-header">
+                        <h2>SESSIONS</h2>
+                        <div class="sessions-stats">
+                            <span id="sessions-total">0 total</span>
+                            <span class="separator">|</span>
+                            <span id="sessions-active">0 active</span>
+                        </div>
+                    </div>
+                    <div id="sessions-list" class="sessions-list">
+                        <div class="no-data">No sessions yet</div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Charts Row 2: Cost by Model and Time Distribution -->
-        <div class="charts-grid-2">
-            <div class="chart-card">
-                <h2>Cost by Model</h2>
-                <div id="cost-by-model" class="cost-list"></div>
-            </div>
-
-            <div class="chart-card">
-                <h2>Active Time Distribution</h2>
-                <canvas id="time-distribution-chart"></canvas>
-            </div>
-        </div>
-
-        <!-- Time Series Charts -->
-        <div class="charts-grid-2">
-            <div class="chart-card">
-                <h2>Token Usage Over Time</h2>
-                <canvas id="token-usage-timeline"></canvas>
-            </div>
-
-            <div class="chart-card">
-                <h2>Cost Over Time</h2>
-                <canvas id="cost-timeline"></canvas>
-            </div>
-        </div>
-
-        <!-- Events Section -->
-        <div class="events-section">
-            <div class="events-card">
-                <h2>Recent Events</h2>
-                <div class="events-list" id="events-list">
-                    <div class="no-data">No events yet. Start a Claude Code session to see data.</div>
+            <!-- Events Panel -->
+            <div class="events-area">
+                <div class="panel" style="display:flex;flex-direction:column;height:100%;padding:0;">
+                    <div class="panel-title" style="padding:6px 10px;border-bottom:1px solid var(--border);">EVENT LOG</div>
+                    <div class="events-scroll" id="events-list">
+                        <div class="no-data">No events yet</div>
+                    </div>
                 </div>
             </div>
+
         </div>
 
         <footer>
-            <p>Configure Claude Code with OTLP endpoint: <code>http://localhost:4318</code></p>
-            <p>Set <code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code> to enable metrics</p>
+            <p>OTLP: <code>http://localhost:4318</code></p>
+            <p><code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code></p>
         </footer>
     </div>
 

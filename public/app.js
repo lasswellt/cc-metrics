@@ -2,145 +2,219 @@
 const STORAGE_KEY = 'claudeSessionKey';
 const POLLING_INTERVAL_KEY = 'pollingInterval';
 const DATA_TIMEFRAME_KEY = 'dataTimeframe';
+const THEME_KEY = 'dashboardTheme';
 
 // Feature flag: Use RethinkDB changefeeds for metrics instead of polling
 const USE_CHANGEFEED_METRICS = true;
 
-// Chart.js configuration
+// Chart.js configuration — Bloomberg terminal theme
 const chartConfig = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+        duration: 200
+    },
+    interaction: {
+        mode: 'index',
+        intersect: false
+    },
     plugins: {
         legend: {
-            display: true,
-            labels: { color: '#a0a0a0' }
+            display: false,
+            labels: {
+                color: '#666680',
+                usePointStyle: true,
+                pointStyle: 'circle',
+                padding: 8,
+                font: { family: "'JetBrains Mono', monospace", size: 10 }
+            }
+        },
+        tooltip: {
+            backgroundColor: '#0e0e16',
+            borderColor: '#1e1e2e',
+            borderWidth: 1,
+            cornerRadius: 0,
+            padding: 8,
+            titleColor: '#e8e8e8',
+            bodyColor: '#666680',
+            titleFont: { family: "'JetBrains Mono', monospace", weight: '600', size: 11 },
+            bodyFont: { family: "'JetBrains Mono', monospace", size: 10 }
         }
     },
     scales: {
         y: {
             beginAtZero: true,
-            ticks: { color: '#a0a0a0' },
-            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            ticks: { color: '#666680', font: { family: "'JetBrains Mono', monospace", size: 9 } },
+            grid: { color: 'rgba(30,30,46,0.5)', drawBorder: false },
+            border: { display: false }
         },
         x: {
-            ticks: { color: '#a0a0a0' },
-            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            ticks: { color: '#666680', font: { family: "'JetBrains Mono', monospace", size: 9 } },
+            grid: { color: 'rgba(30,30,46,0.5)', drawBorder: false },
+            border: { display: false }
         }
     }
 };
 
-// Initialize pie chart config
-const pieConfig = {
+// Horizontal bar chart config for breakdowns
+const horizontalBarConfig = {
     responsive: true,
     maintainAspectRatio: false,
+    indexAxis: 'y',
+    animation: {
+        duration: 200
+    },
     plugins: {
-        legend: {
-            display: true,
-            position: 'right',
-            labels: { color: '#a0a0a0', padding: 10 }
+        legend: { display: false },
+        tooltip: {
+            backgroundColor: '#0e0e16',
+            borderColor: '#1e1e2e',
+            borderWidth: 1,
+            cornerRadius: 0,
+            padding: 8,
+            titleColor: '#e8e8e8',
+            bodyColor: '#666680',
+            titleFont: { family: "'JetBrains Mono', monospace", weight: '600', size: 11 },
+            bodyFont: { family: "'JetBrains Mono', monospace", size: 10 },
+            callbacks: {
+                label: function(context) {
+                    return ' ' + formatNumber(context.raw);
+                }
+            }
+        }
+    },
+    scales: {
+        x: {
+            beginAtZero: true,
+            ticks: { color: '#666680', font: { family: "'JetBrains Mono', monospace", size: 9 } },
+            grid: { color: 'rgba(30,30,46,0.5)', drawBorder: false },
+            border: { display: false }
+        },
+        y: {
+            ticks: { color: '#666680', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+            grid: { display: false },
+            border: { display: false }
         }
     }
 };
 
-// Initialize charts
+// Initialize charts — horizontal bar charts for breakdowns
 const tokensByTypeChart = new Chart(document.getElementById('tokens-by-type-chart'), {
-    type: 'doughnut',
+    type: 'bar',
     data: {
-        labels: ['Input', 'Output', 'Cache Read', 'Cache Creation'],
+        labels: ['Input', 'Output', 'Cache Read', 'Cache Create'],
         datasets: [{
             data: [0, 0, 0, 0],
             backgroundColor: [
-                'rgba(33, 150, 243, 0.8)',
-                'rgba(76, 175, 80, 0.8)',
-                'rgba(255, 193, 7, 0.8)',
-                'rgba(156, 39, 176, 0.8)'
+                '#18ffff',
+                '#00e676',
+                '#ffab40',
+                '#a78bfa'
             ],
-            borderColor: [
-                'rgb(33, 150, 243)',
-                'rgb(76, 175, 80)',
-                'rgb(255, 193, 7)',
-                'rgb(156, 39, 176)'
-            ],
-            borderWidth: 2
+            borderRadius: 0,
+            borderSkipped: false,
+            barThickness: 14
         }]
     },
-    options: pieConfig
+    options: horizontalBarConfig
 });
 
 const tokensByModelChart = new Chart(document.getElementById('tokens-by-model-chart'), {
-    type: 'doughnut',
+    type: 'bar',
     data: {
         labels: [],
         datasets: [{
             data: [],
             backgroundColor: [],
-            borderWidth: 2
+            borderRadius: 0,
+            borderSkipped: false,
+            barThickness: 14
         }]
     },
-    options: pieConfig
+    options: horizontalBarConfig
 });
 
 const timeDistributionChart = new Chart(document.getElementById('time-distribution-chart'), {
-    type: 'doughnut',
+    type: 'bar',
     data: {
         labels: ['CLI', 'Planning', 'User'],
         datasets: [{
             data: [0, 0, 0],
             backgroundColor: [
-                'rgba(33, 150, 243, 0.8)',
-                'rgba(156, 39, 176, 0.8)',
-                'rgba(255, 152, 0, 0.8)'
+                '#18ffff',
+                '#a78bfa',
+                '#00e676'
             ],
-            borderColor: [
-                'rgb(33, 150, 243)',
-                'rgb(156, 39, 176)',
-                'rgb(255, 152, 0)'
-            ],
-            borderWidth: 2
+            borderRadius: 0,
+            borderSkipped: false,
+            barThickness: 14
         }]
     },
-    options: pieConfig
+    options: horizontalBarConfig
 });
 
-const tokenUsageTimeline = new Chart(document.getElementById('token-usage-timeline'), {
+const tokenTimelineCanvas = document.getElementById('token-usage-timeline');
+
+const timeScaleConfig = {
+    type: 'time',
+    time: {
+        unit: 'minute',
+        displayFormats: { minute: 'HH:mm', hour: 'HH:mm' },
+        tooltipFormat: 'MMM d, HH:mm:ss'
+    },
+    ticks: {
+        color: '#666680',
+        maxRotation: 45,
+        minRotation: 45,
+        font: { family: "'JetBrains Mono', monospace", size: 9 }
+    },
+    grid: { color: 'rgba(30,30,46,0.5)', drawBorder: false },
+    border: { display: false }
+};
+
+const tokenUsageTimeline = new Chart(tokenTimelineCanvas, {
     type: 'line',
     data: {
         datasets: [
             {
                 label: 'Input',
                 data: [],
-                borderColor: 'rgb(33, 150, 243)',
-                backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
+                borderColor: '#18ffff',
+                borderWidth: 1,
+                tension: 0.1,
+                fill: false,
+                pointRadius: 0,
+                pointHoverRadius: 3
             },
             {
                 label: 'Output',
                 data: [],
-                borderColor: 'rgb(76, 175, 80)',
-                backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
+                borderColor: '#00e676',
+                borderWidth: 1,
+                tension: 0.1,
+                fill: false,
+                pointRadius: 0,
+                pointHoverRadius: 3
             },
             {
                 label: 'Cache Read',
                 data: [],
-                borderColor: 'rgb(255, 193, 7)',
-                backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
+                borderColor: '#ffab40',
+                borderWidth: 1,
+                tension: 0.1,
+                fill: false,
+                pointRadius: 0,
+                pointHoverRadius: 3
             },
             {
                 label: 'Cache Creation',
                 data: [],
-                borderColor: 'rgb(156, 39, 176)',
-                backgroundColor: 'rgba(156, 39, 176, 0.1)',
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true
+                borderColor: '#a78bfa',
+                borderWidth: 1,
+                tension: 0.1,
+                fill: false,
+                pointRadius: 0,
+                pointHoverRadius: 3
             }
         ]
     },
@@ -148,71 +222,231 @@ const tokenUsageTimeline = new Chart(document.getElementById('token-usage-timeli
         ...chartConfig,
         scales: {
             ...chartConfig.scales,
-            x: {
-                ...chartConfig.scales.x,
-                type: 'time',
-                time: {
-                    unit: 'minute',
-                    displayFormats: {
-                        minute: 'HH:mm',
-                        hour: 'HH:mm'
-                    },
-                    tooltipFormat: 'MMM d, HH:mm:ss'
-                },
-                ticks: {
-                    ...chartConfig.scales.x.ticks,
-                    maxRotation: 45,
-                    minRotation: 45
-                }
-            }
+            x: timeScaleConfig
         },
         plugins: {
+            ...chartConfig.plugins,
             legend: {
                 display: true,
                 position: 'top',
-                labels: { color: '#a0a0a0' }
+                labels: {
+                    color: '#666680',
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                    padding: 8,
+                    font: { family: "'JetBrains Mono', monospace", size: 9 }
+                }
             }
         }
     }
 });
 
-const costTimeline = new Chart(document.getElementById('cost-timeline'), {
+const costTimelineCanvas = document.getElementById('cost-timeline');
+
+const costTimeline = new Chart(costTimelineCanvas, {
     type: 'line',
     data: {
         datasets: [{
             label: 'Cost ($)',
             data: [],
-            borderColor: '#ff9800',
-            backgroundColor: 'rgba(255, 152, 0, 0.1)',
-            borderWidth: 2,
-            tension: 0.4,
-            fill: true
+            borderColor: '#ffab40',
+            borderWidth: 1,
+            tension: 0.1,
+            fill: false,
+            pointRadius: 0,
+            pointHoverRadius: 3
         }]
     },
     options: {
         ...chartConfig,
         scales: {
             ...chartConfig.scales,
-            x: {
-                ...chartConfig.scales.x,
-                type: 'time',
-                time: {
-                    unit: 'minute',
-                    displayFormats: {
-                        minute: 'HH:mm',
-                        hour: 'HH:mm'
-                    },
-                    tooltipFormat: 'MMM d, HH:mm:ss'
-                },
-                ticks: {
-                    ...chartConfig.scales.x.ticks,
-                    maxRotation: 45,
-                    minRotation: 45
-                }
-            }
+            x: timeScaleConfig
         }
     }
 });
+
+// ============================================================================
+// Theme Manager
+// ============================================================================
+
+const ThemeManager = {
+    themes: {
+        bloomberg: {
+            chart: {
+                fontFamily: "'JetBrains Mono', monospace",
+                gridColor: 'rgba(30,30,46,0.5)',
+                tickColor: '#666680',
+                tooltipBg: '#0e0e16',
+                tooltipBorder: '#1e1e2e',
+                tooltipTitle: '#e8e8e8',
+                tooltipBody: '#666680',
+                legendColor: '#666680',
+                dataColors: ['#18ffff', '#00e676', '#ffab40', '#a78bfa'],
+                costColor: '#ffab40',
+                borderWidth: 1,
+                tension: 0.1,
+                fill: false,
+                borderRadius: 0,
+                barThickness: 14,
+                cornerRadius: 0,
+                animationDuration: 200,
+                pointRadius: 0,
+                pointHoverRadius: 3,
+            },
+            renderMode: 'terminal'
+        },
+        glass: {
+            chart: {
+                fontFamily: "'Inter', sans-serif",
+                gridColor: 'rgba(255,255,255,0.06)',
+                tickColor: '#a0a0a0',
+                tooltipBg: 'rgba(30,30,50,0.9)',
+                tooltipBorder: 'rgba(255,255,255,0.15)',
+                tooltipTitle: '#ffffff',
+                tooltipBody: '#c0c0c0',
+                legendColor: '#c0c0c0',
+                dataColors: ['#4facfe', '#43e97b', '#ff9800', '#f093fb'],
+                costColor: '#ff9800',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+                borderRadius: 6,
+                barThickness: 18,
+                cornerRadius: 6,
+                animationDuration: 600,
+                pointRadius: 0,
+                pointHoverRadius: 5,
+            },
+            renderMode: 'cards'
+        },
+        minimal: {
+            chart: {
+                fontFamily: "'Inter', sans-serif",
+                gridColor: 'rgba(255,255,255,0.04)',
+                tickColor: '#71717a',
+                tooltipBg: '#1a1a22',
+                tooltipBorder: 'rgba(255,255,255,0.1)',
+                tooltipTitle: '#e4e4e7',
+                tooltipBody: '#a1a1aa',
+                legendColor: '#a1a1aa',
+                dataColors: ['#6366f1', '#22c55e', '#f59e0b', '#a78bfa'],
+                costColor: '#f59e0b',
+                borderWidth: 1.5,
+                tension: 0.3,
+                fill: false,
+                borderRadius: 4,
+                barThickness: 16,
+                cornerRadius: 4,
+                animationDuration: 300,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+            },
+            renderMode: 'list'
+        }
+    },
+
+    current: 'bloomberg',
+
+    init() {
+        this.current = localStorage.getItem(THEME_KEY) || 'bloomberg';
+        document.body.setAttribute('data-theme', this.current);
+        const sel = document.getElementById('theme-select');
+        if (sel) sel.value = this.current;
+        this.applyChartTheme();
+    },
+
+    set(themeName) {
+        if (!this.themes[themeName]) return;
+        this.current = themeName;
+        localStorage.setItem(THEME_KEY, themeName);
+        document.body.setAttribute('data-theme', themeName);
+        const sel = document.getElementById('theme-select');
+        if (sel) sel.value = themeName;
+        this.applyChartTheme();
+        renderSessions();
+        if (lastEventsData) updateEvents(lastEventsData);
+    },
+
+    get config() { return this.themes[this.current]; },
+
+    applyChartTheme() {
+        const c = this.config.chart;
+        const allCharts = [
+            { chart: tokenUsageTimeline, type: 'line' },
+            { chart: costTimeline, type: 'line' },
+            { chart: tokensByTypeChart, type: 'bar' },
+            { chart: tokensByModelChart, type: 'bar' },
+            { chart: timeDistributionChart, type: 'bar' }
+        ];
+
+        allCharts.forEach(({ chart, type }) => {
+            if (!chart) return;
+
+            // Tooltip
+            const tt = chart.options.plugins.tooltip;
+            tt.backgroundColor = c.tooltipBg;
+            tt.borderColor = c.tooltipBorder;
+            tt.cornerRadius = c.cornerRadius;
+            tt.titleColor = c.tooltipTitle;
+            tt.bodyColor = c.tooltipBody;
+            tt.titleFont = { ...tt.titleFont, family: c.fontFamily };
+            tt.bodyFont = { ...tt.bodyFont, family: c.fontFamily };
+
+            // Legend
+            if (chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+                chart.options.plugins.legend.labels.color = c.legendColor;
+                if (chart.options.plugins.legend.labels.font) {
+                    chart.options.plugins.legend.labels.font = {
+                        ...chart.options.plugins.legend.labels.font,
+                        family: c.fontFamily
+                    };
+                }
+            }
+
+            // Animation
+            chart.options.animation.duration = c.animationDuration;
+
+            // Scales
+            ['x', 'y'].forEach(axis => {
+                const scale = chart.options.scales[axis];
+                if (!scale) return;
+                if (scale.ticks) {
+                    scale.ticks.color = c.tickColor;
+                    if (scale.ticks.font) {
+                        scale.ticks.font = { ...scale.ticks.font, family: c.fontFamily };
+                    }
+                }
+                if (scale.grid && scale.grid.display !== false) {
+                    scale.grid.color = c.gridColor;
+                }
+            });
+
+            // Dataset-level styling
+            if (type === 'line') {
+                chart.data.datasets.forEach((ds, i) => {
+                    const color = ds.label === 'Cost ($)' ? c.costColor : c.dataColors[i % c.dataColors.length];
+                    ds.borderColor = color;
+                    ds.borderWidth = c.borderWidth;
+                    ds.tension = c.tension;
+                    ds.fill = c.fill;
+                    ds.pointRadius = c.pointRadius;
+                    ds.pointHoverRadius = c.pointHoverRadius;
+                    if (c.fill && color.startsWith('#')) {
+                        ds.backgroundColor = color + '20';
+                    }
+                });
+            } else {
+                chart.data.datasets.forEach(ds => {
+                    ds.borderRadius = c.borderRadius;
+                    ds.barThickness = c.barThickness;
+                });
+            }
+
+            chart.update('none');
+        });
+    }
+};
 
 // ============================================================================
 // Claude.ai Usage Sparklines
@@ -257,9 +491,9 @@ function createUsageSparkline(canvasId, color) {
                 data: [],
                 borderColor: color,
                 backgroundColor: gradient,
-                borderWidth: 2.5,
+                borderWidth: 1,
                 pointRadius: 0,
-                tension: 0.3,
+                tension: 0.1,
                 fill: 'origin'
             }]
         },
@@ -296,9 +530,129 @@ function createUsageSparkline(canvasId, color) {
 
 // Initialize Claude.ai usage sparklines (will be created after DOM is ready)
 function initializeClaudeSparklines() {
-    claudeUsageSparklines.fiveHour = createUsageSparkline('five-hour-sparkline', '#4caf50');
-    claudeUsageSparklines.sevenDay = createUsageSparkline('seven-day-sparkline', '#2196f3');
-    claudeUsageSparklines.sonnet = createUsageSparkline('sonnet-sparkline', '#ff9800');
+    claudeUsageSparklines.fiveHour = createUsageSparkline('five-hour-sparkline', '#00e676');
+    claudeUsageSparklines.sevenDay = createUsageSparkline('seven-day-sparkline', '#18ffff');
+    claudeUsageSparklines.sonnet = createUsageSparkline('sonnet-sparkline', '#ffab40');
+}
+
+// ============================================================================
+// Animated Value Counter
+// ============================================================================
+
+const animatingElements = new Map();
+
+function animateValue(element, newValue, formatter, duration = 200) {
+    if (!element) return;
+
+    // Parse current displayed value to a number
+    const text = element.textContent || '0';
+    const currentValue = parseFloat(text.replace(/[^0-9.\-]/g, '')) || 0;
+
+    // Skip if no meaningful change (prevents jitter)
+    if (Math.abs(newValue - currentValue) < 0.01) return;
+
+    // Cancel any ongoing animation for this element
+    const existingAnim = animatingElements.get(element);
+    if (existingAnim) {
+        cancelAnimationFrame(existingAnim);
+    }
+
+    const startTime = performance.now();
+    const delta = newValue - currentValue;
+
+    function easeOutQuart(t) {
+        return 1 - Math.pow(1 - t, 4);
+    }
+
+    function tick(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easedProgress = easeOutQuart(progress);
+        const current = currentValue + delta * easedProgress;
+
+        element.textContent = formatter ? formatter(current) : current.toString();
+
+        if (progress < 1) {
+            const id = requestAnimationFrame(tick);
+            animatingElements.set(element, id);
+        } else {
+            animatingElements.delete(element);
+        }
+    }
+
+    const id = requestAnimationFrame(tick);
+    animatingElements.set(element, id);
+}
+
+// ============================================================================
+// Progress Ring Controller
+// ============================================================================
+
+function updateProgressRing(ringId, percentage) {
+    // No-op: progress rings removed in Bloomberg terminal redesign
+}
+
+// ============================================================================
+// Productivity Gauge SVG Arc
+// ============================================================================
+
+function updateProductivityGauge(value) {
+    // No-op: gauge SVG removed in Bloomberg terminal redesign
+}
+
+// ============================================================================
+// Stat Card Sparklines
+// ============================================================================
+
+const statSparklineData = {
+    cost: [],
+    loc: [],
+    inputTokens: [],
+    outputTokens: []
+};
+
+const statSparklines = {};
+
+function initStatSparklines() {
+    // No-op: stat card sparklines removed in Bloomberg terminal redesign
+}
+
+function hexToRgbObj(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 148, g: 163, b: 184 };
+}
+
+function updateStatSparkline(dataKey, value) {
+    // No-op: stat card sparklines removed in Bloomberg terminal redesign
+}
+
+// ============================================================================
+// Trend Indicators
+// ============================================================================
+
+const previousStats = {};
+
+function updateTrendIndicator(elementId, currentValue, statKey) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const prev = previousStats[statKey];
+    if (prev !== undefined && prev > 0) {
+        const change = ((currentValue - prev) / prev) * 100;
+        if (Math.abs(change) > 0.1) {
+            const arrow = change > 0 ? '\u2191' : '\u2193';
+            el.textContent = `${arrow} ${Math.abs(change).toFixed(1)}%`;
+            el.className = `trend-indicator ${change > 0 ? 'up' : 'down'}`;
+        } else {
+            el.textContent = '';
+            el.className = 'trend-indicator';
+        }
+    }
+    previousStats[statKey] = currentValue;
 }
 
 // Format number with K/M suffix
@@ -426,45 +780,70 @@ function stringToColor(str) {
 
 // Update all stats
 function updateStats(data) {
-    // Main stats
-    document.getElementById('session-count').textContent = data.sessionCount;
-    // Common mode stat card removed
-    
+    // Main stats — animated
+    const sessionCount = data.sessionCount || 0;
+    animateValue(document.getElementById('session-count'), sessionCount, v => Math.round(v).toString());
+
     // Active times - display formatted string from backend (already includes units like "5.0m" or "30.2s")
     document.getElementById('active-time-cli').textContent = data.activeTimeCLI || '0s';
     document.getElementById('active-time-planning').textContent = data.activeTimePlanning || '0s';
-    
-    // Cost - round to 2 decimals
-    document.getElementById('total-cost').textContent = `$${parseFloat(data.totalCost || 0).toFixed(2)}`;
-    document.getElementById('lines-of-code').textContent = formatNumber(data.linesOfCode || 0);
 
-    // Token stats
-    document.getElementById('input-tokens').textContent = formatNumber(data.inputTokens || 0);
-    document.getElementById('output-tokens').textContent = formatNumber(data.outputTokens || 0);
-    document.getElementById('cache-read').textContent = formatNumber(data.cacheReadTokens || 0);
-    document.getElementById('cache-creation').textContent = formatNumber(data.cacheCreationTokens || 0);
-    
-    // Cache efficiency - round to 2 decimals
+    // Cost — animated
+    const totalCost = parseFloat(data.totalCost || 0);
+    animateValue(document.getElementById('total-cost'), totalCost, v => `$${v.toFixed(2)}`);
+
+    // Lines of code — animated
+    const loc = data.linesOfCode || 0;
+    animateValue(document.getElementById('lines-of-code'), loc, v => formatNumber(Math.round(v)));
+
+    // Token stats — animated
+    const inputTokens = data.inputTokens || 0;
+    const outputTokens = data.outputTokens || 0;
+    const cacheRead = data.cacheReadTokens || 0;
+    const cacheCreation = data.cacheCreationTokens || 0;
+
+    animateValue(document.getElementById('input-tokens'), inputTokens, v => formatNumber(Math.round(v)));
+    animateValue(document.getElementById('output-tokens'), outputTokens, v => formatNumber(Math.round(v)));
+    animateValue(document.getElementById('cache-read'), cacheRead, v => formatNumber(Math.round(v)));
+    animateValue(document.getElementById('cache-creation'), cacheCreation, v => formatNumber(Math.round(v)));
+
+    // Cache efficiency — animated + progress ring
     const cacheEfficiency = parseFloat(data.cacheEfficiency) || 0;
-    document.getElementById('cache-efficiency').textContent = `${cacheEfficiency.toFixed(2)}%`;
-    
-    // Cost per 1k - round to 2 decimals
+    animateValue(document.getElementById('cache-efficiency'), cacheEfficiency, v => `${v.toFixed(2)}%`);
+    updateProgressRing('cache-efficiency-ring', cacheEfficiency);
+
+    // Cost per 1k — animated
     const costPer1k = parseFloat(data.costPer1kOutput) || 0;
-    document.getElementById('cost-per-1k').textContent = `$${costPer1k.toFixed(2)}`;
+    animateValue(document.getElementById('cost-per-1k'), costPer1k, v => `$${v.toFixed(2)}`);
 
-    // Productivity - already uses formatNumber which now handles rounding
-    document.getElementById('productivity-ratio').textContent = formatNumber(data.productivityRatio || 0);
+    // Productivity — animated + gauge
+    const productivityRatio = data.productivityRatio || 0;
+    animateValue(document.getElementById('productivity-ratio'), productivityRatio, v => formatNumber(v));
+    updateProductivityGauge(productivityRatio);
 
-    // Git & Code Activity stats
-    document.getElementById('pull-requests').textContent = formatNumber(data.pullRequests || 0);
-    document.getElementById('commits').textContent = formatNumber(data.commits || 0);
-    document.getElementById('lines-added').textContent = '+' + formatNumber(data.linesAdded || 0);
-    document.getElementById('lines-removed').textContent = '-' + formatNumber(data.linesRemoved || 0);
+    // Git & Code Activity stats — animated
+    animateValue(document.getElementById('pull-requests'), data.pullRequests || 0, v => formatNumber(Math.round(v)));
+    animateValue(document.getElementById('commits'), data.commits || 0, v => formatNumber(Math.round(v)));
+    animateValue(document.getElementById('lines-added'), data.linesAdded || 0, v => '+' + formatNumber(Math.round(v)));
+    animateValue(document.getElementById('lines-removed'), data.linesRemoved || 0, v => '-' + formatNumber(Math.round(v)));
 
-    // Edit accept rate
+    // Edit accept rate — animated + progress ring
     const totalEdits = (data.codeEditAccepts || 0) + (data.codeEditRejects || 0);
-    const acceptRate = totalEdits > 0 ? ((data.codeEditAccepts || 0) / totalEdits * 100).toFixed(1) : '0';
-    document.getElementById('edit-accept-rate').textContent = `${acceptRate}%`;
+    const acceptRate = totalEdits > 0 ? (data.codeEditAccepts || 0) / totalEdits * 100 : 0;
+    animateValue(document.getElementById('edit-accept-rate'), acceptRate, v => `${v.toFixed(1)}%`);
+    updateProgressRing('edit-accept-ring', acceptRate);
+
+    // Update stat sparklines
+    updateStatSparkline('cost', totalCost);
+    updateStatSparkline('loc', loc);
+    updateStatSparkline('inputTokens', inputTokens);
+    updateStatSparkline('outputTokens', outputTokens);
+
+    // Update trend indicators
+    updateTrendIndicator('trend-total-cost', totalCost, 'totalCost');
+    updateTrendIndicator('trend-lines-of-code', loc, 'linesOfCode');
+    updateTrendIndicator('trend-input-tokens', inputTokens, 'inputTokens');
+    updateTrendIndicator('trend-output-tokens', outputTokens, 'outputTokens');
 }
 
 // Update tokens by type pie chart
@@ -478,7 +857,7 @@ function updateTokensByType(data) {
         data.cacheReadTokens,
         data.cacheCreationTokens
     ];
-    tokensByTypeChart.update('none');
+    tokensByTypeChart.update();
 }
 
 // Update tokens by model pie chart
@@ -505,12 +884,13 @@ function updateTokensByModel(byModel) {
     tokensByModelChart.data.labels = labels;
     tokensByModelChart.data.datasets[0].data = data;
     tokensByModelChart.data.datasets[0].backgroundColor = colors;
-    tokensByModelChart.update('none');
+    tokensByModelChart.update();
 }
 
 // Update cost by model list
 function updateCostByModel(byModel) {
     const costList = document.getElementById('cost-by-model');
+    if (!costList) return;
     const models = Object.keys(byModel).filter(m => byModel[m].cost > 0);
 
     if (models.length === 0) {
@@ -547,7 +927,7 @@ function updateTimeDistribution(data) {
     if (total === 0) return;
 
     timeDistributionChart.data.datasets[0].data = [cliTime, planningTime, userTime];
-    timeDistributionChart.update('none');
+    timeDistributionChart.update();
 }
 
 // Update token usage timeline
@@ -611,7 +991,7 @@ function updateTokenUsageTimeline(history) {
         tokenUsageTimeline.options.scales.x.max = undefined;
     }
 
-    tokenUsageTimeline.update('none');
+    tokenUsageTimeline.update();
 }
 
 // Update cost timeline
@@ -668,7 +1048,7 @@ function updateCostTimeline(history) {
         costTimeline.options.scales.x.max = undefined;
     }
 
-    costTimeline.update('none');
+    costTimeline.update();
 }
 
 // Update events list
@@ -703,58 +1083,115 @@ function extractAttributeLines(event) {
     return lines;
 }
 
-// Helper function: Render a single event item
-function renderEventItem(event) {
+// Card-based event rendering (glass theme)
+function renderEventCardView(event) {
+    const time = formatTime(event.timestamp);
+    const type = escapeHtml(event.type || 'info').toUpperCase();
+    const severity = (event.severity || 'INFO').toLowerCase();
+    let typeClass = 'info';
+    if (severity === 'error' || severity === 'err') typeClass = 'error';
+    else if (severity === 'warn' || severity === 'warning') typeClass = 'warn';
+    else if (type.includes('TOOL') || type.includes('tool')) typeClass = 'tool';
+
     const attributeLines = extractAttributeLines(event);
-    const hasMoreThanTwoLines = attributeLines.length > 2;
-    const previewLines = attributeLines.slice(0, 2);
-    const remainingLines = attributeLines.slice(2);
+    const body = attributeLines[0] || '';
 
-    const severityBadge = (event.severity && event.severity !== 'INFO')
-        ? `<span class="severity-badge severity-${escapeHtml(event.severity).toLowerCase()}">${escapeHtml(event.severity)}</span>`
-        : '';
-
-    // Display enrichment badges
-    let displayBadges = '';
+    let badges = '';
     if (event.attributes && event.attributes._display) {
         const d = event.attributes._display;
-        if (d.model) displayBadges += `<span class="event-detail model">${escapeHtml(d.model)}</span>`;
-        if (d.tool) displayBadges += `<span class="event-detail tool">${escapeHtml(d.tool)}</span>`;
-        if (d.cost !== undefined) displayBadges += `<span class="event-detail cost">$${parseFloat(d.cost).toFixed(4)}</span>`;
-        if (d.success !== undefined) displayBadges += `<span class="event-detail ${d.success ? 'success' : 'failure'}">${d.success ? 'OK' : 'FAIL'}</span>`;
-        if (d.duration !== undefined) displayBadges += `<span class="event-detail duration">${d.duration}ms</span>`;
-        if (d.error) displayBadges += `<span class="event-detail error">${escapeHtml(String(d.error).substring(0, 50))}</span>`;
+        if (d.model) badges += `<span class="log-badge model">${escapeHtml(d.model)}</span>`;
+        if (d.tool) badges += `<span class="log-badge tool">${escapeHtml(d.tool)}</span>`;
+        if (d.cost !== undefined) badges += `<span class="log-badge cost">$${parseFloat(d.cost).toFixed(4)}</span>`;
+        if (d.success !== undefined) badges += `<span class="log-badge ${d.success ? 'success' : 'failure'}">${d.success ? 'OK' : 'FAIL'}</span>`;
+        if (d.duration !== undefined) badges += `<span class="log-badge duration">${d.duration}ms</span>`;
     }
 
-    const expandSection = hasMoreThanTwoLines ? `
-        <div class="event-body-full" style="display: none;">
-            ${remainingLines.map(line => `<div class="event-line">${escapeHtml(line)}</div>`).join('')}
-        </div>
-        <button class="event-expand-btn" onclick="toggleEventExpand(this)">
-            <span class="expand-icon">▼</span> Expand
-        </button>
-    ` : '';
-
     return `
-        <div class="event-item">
-            <div class="event-header">
-                <span class="event-type">${escapeHtml(event.type)}</span>
-                ${severityBadge}
-                ${displayBadges}
-                <span class="event-time">${formatRelativeTime(event.timestamp)}</span>
+        <div class="event-card ${typeClass}">
+            <div class="event-card-header">
+                <span class="event-card-time">${time}</span>
+                <span class="event-card-type ${typeClass}">${type}</span>
+                ${badges ? `<span class="log-badges">${badges}</span>` : ''}
             </div>
-            <div class="event-body">
-                <div class="event-body-preview">
-                    ${previewLines.map(line => `<div class="event-line">${escapeHtml(line)}</div>`).join('')}
-                </div>
-                ${expandSection}
-            </div>
+            <div class="event-card-body">${escapeHtml(body)}</div>
         </div>
     `;
 }
 
-// Main function: Update events list - now much simpler with helper functions
+// Simple row event rendering (minimal theme)
+function renderEventListItem(event) {
+    const time = formatTime(event.timestamp);
+    const type = escapeHtml(event.type || 'info').toUpperCase();
+    const severity = (event.severity || 'INFO').toLowerCase();
+    let typeClass = 'info';
+    if (severity === 'error' || severity === 'err') typeClass = 'error';
+    else if (severity === 'warn' || severity === 'warning') typeClass = 'warn';
+    else if (type.includes('TOOL') || type.includes('tool')) typeClass = 'tool';
+
+    const attributeLines = extractAttributeLines(event);
+    const body = attributeLines[0] || '';
+
+    let badges = '';
+    if (event.attributes && event.attributes._display) {
+        const d = event.attributes._display;
+        if (d.model) badges += `<span class="log-badge model">${escapeHtml(d.model)}</span>`;
+        if (d.cost !== undefined) badges += `<span class="log-badge cost">$${parseFloat(d.cost).toFixed(4)}</span>`;
+    }
+
+    return `
+        <div class="event-row ${typeClass}">
+            <span class="event-row-time">${time}</span>
+            <span class="event-row-body">${escapeHtml(body)}</span>
+            ${badges ? `<span class="log-badges">${badges}</span>` : ''}
+        </div>
+    `;
+}
+
+// Render a single event as a compact log line
+function renderEventItem(event) {
+    const time = formatTime(event.timestamp);
+    const type = escapeHtml(event.type || 'info').toUpperCase();
+
+    // Determine severity class for coloring
+    const severity = (event.severity || 'INFO').toLowerCase();
+    let typeClass = 'info';
+    if (severity === 'error' || severity === 'err') typeClass = 'error';
+    else if (severity === 'warn' || severity === 'warning') typeClass = 'warn';
+    else if (type.includes('TOOL') || type.includes('tool')) typeClass = 'tool';
+    else if (severity === 'debug') typeClass = 'debug';
+
+    // Build compact body text from first attribute line
+    const attributeLines = extractAttributeLines(event);
+    const body = attributeLines[0] || '';
+
+    // Build inline badges
+    let badges = '';
+    if (event.attributes && event.attributes._display) {
+        const d = event.attributes._display;
+        if (d.model) badges += `<span class="log-badge model">${escapeHtml(d.model)}</span>`;
+        if (d.tool) badges += `<span class="log-badge tool">${escapeHtml(d.tool)}</span>`;
+        if (d.cost !== undefined) badges += `<span class="log-badge cost">$${parseFloat(d.cost).toFixed(4)}</span>`;
+        if (d.success !== undefined) badges += `<span class="log-badge ${d.success ? 'success' : 'failure'}">${d.success ? 'OK' : 'FAIL'}</span>`;
+        if (d.duration !== undefined) badges += `<span class="log-badge duration">${d.duration}ms</span>`;
+        if (d.error) badges += `<span class="log-badge error">${escapeHtml(String(d.error).substring(0, 40))}</span>`;
+    }
+
+    return `
+        <div class="log-line">
+            <span class="log-time">${time}</span>
+            <span class="log-type ${typeClass}">${type}</span>
+            <span class="log-body">${escapeHtml(body)}</span>
+            ${badges ? `<span class="log-badges">${badges}</span>` : ''}
+        </div>
+    `;
+}
+
+// Cache last events data for theme re-rendering
+let lastEventsData = null;
+
+// Main function: Update events list - dispatches to theme-appropriate renderer
 function updateEvents(eventsData) {
+    lastEventsData = eventsData;
     const eventsList = document.getElementById('events-list');
 
     if (eventsData.events.length === 0) {
@@ -762,27 +1199,18 @@ function updateEvents(eventsData) {
         return;
     }
 
-    eventsList.innerHTML = eventsData.events.map(renderEventItem).join('');
-}
-
-// Toggle expand/collapse for event body
-function toggleEventExpand(button) {
-    const eventBody = button.closest('.event-body');
-    const fullContent = eventBody.querySelector('.event-body-full');
-    const icon = button.querySelector('.expand-icon');
-
-    if (fullContent.style.display === 'none') {
-        // Expand
-        fullContent.style.display = 'block';
-        icon.textContent = '▲';
-        button.childNodes[1].textContent = ' Collapse';
+    const mode = ThemeManager.config.renderMode;
+    if (mode === 'cards') {
+        eventsList.innerHTML = eventsData.events.map(renderEventCardView).join('');
+    } else if (mode === 'list') {
+        eventsList.innerHTML = eventsData.events.map(renderEventListItem).join('');
     } else {
-        // Collapse
-        fullContent.style.display = 'none';
-        icon.textContent = '▼';
-        button.childNodes[1].textContent = ' Expand';
+        eventsList.innerHTML = eventsData.events.map(renderEventItem).join('');
     }
 }
+
+// Toggle expand/collapse - no-op in terminal redesign (log lines are single-line)
+function toggleEventExpand(button) {}
 
 // Escape HTML to prevent XSS
 function escapeHtml(text) {
@@ -978,55 +1406,91 @@ function renderModelColumn(familyKey, familyData) {
     `;
 }
 
-// Helper function: Render a single session card
+// Render a single session as a table row
 function renderSessionCard(session) {
     const shortId = session.sessionId.split('-')[0];
-    const statusClass = session.isActive ? 'active' : '';
-    const cardClass = session.isActive ? 'session-card active' : 'session-card';
+    const rowClass = session.isActive ? 'active-row' : '';
+    const statusDotClass = session.isActive ? 'active' : '';
 
+    // Get primary model info
     const modelFamilies = aggregateModelsByFamily(session.byModel);
-    const modelColumnsHtml = modelFamilies
-        .map(([familyKey, familyData]) => renderModelColumn(familyKey, familyData))
+    const activeModel = modelFamilies.find(([, d]) => d.isActive);
+    const modelName = activeModel ? activeModel[1].displayName : '--';
+
+    // Calculate total tokens
+    const totalTokens = modelFamilies.reduce((sum, [, d]) => sum + calculateModelTotalTokens(d), 0);
+
+    return `
+        <tr class="${rowClass}">
+            <td><span class="session-status-dot ${statusDotClass}"></span>${shortId}</td>
+            <td>${escapeHtml(session.terminalType || '??')}</td>
+            <td>${modelName}</td>
+            <td>${formatNumber(totalTokens)}</td>
+            <td style="color:var(--amber)">$${session.totalCost}</td>
+            <td>${formatNumber(session.linesOfCode)}</td>
+            <td>${session.totalActiveTime}</td>
+            <td>${formatSessionDuration(session.duration)}</td>
+            <td style="color:var(--gray)">${formatRelativeTime(session.lastSeen)}</td>
+        </tr>
+    `;
+}
+
+// Card-based session rendering (glass theme)
+function renderSessionCardView(session) {
+    const shortId = session.sessionId.split('-')[0];
+    const isActive = session.isActive;
+    const modelFamilies = aggregateModelsByFamily(session.byModel);
+    const totalTokens = modelFamilies.reduce((sum, [, d]) => sum + calculateModelTotalTokens(d), 0);
+
+    const modelBadges = modelFamilies
+        .filter(([, d]) => calculateModelTotalTokens(d) > 0)
+        .map(([, d]) => `<span class="session-card-badge">${d.displayName} ${d.percentage.toFixed(0)}%</span>`)
         .join('');
 
     return `
-        <div class="${cardClass}">
-            <div class="session-header">
-                <div class="session-title">
-                    <div class="session-status ${statusClass}"></div>
-                    <div>
-                        <div class="session-terminal">${session.terminalType || 'Unknown Terminal'}</div>
-                        <div class="session-id">${shortId}</div>
-                    </div>
-                </div>
-                <div class="session-info">
-                    <span>Duration: ${formatSessionDuration(session.duration)}</span>
-                    <span>Last seen: ${formatRelativeTime(session.lastSeen)}</span>
-                </div>
+        <div class="session-card ${isActive ? 'active' : ''}">
+            <div class="session-card-header">
+                <span class="session-status-dot ${isActive ? 'active' : ''}"></span>
+                <span class="session-card-id">${shortId}</span>
+                <span class="session-card-type">${escapeHtml(session.terminalType || '??')}</span>
+                <span class="session-card-cost">$${session.totalCost}</span>
             </div>
-            <div class="session-metrics-row">
-                ${modelColumnsHtml}
-                <div class="session-aggregate-column">
-                    <div class="aggregate-column-header">Active Time</div>
-                    <div class="aggregate-column-divider"></div>
-                    <div class="aggregate-column-value">${session.totalActiveTime}</div>
-                </div>
-                <div class="session-aggregate-column">
-                    <div class="aggregate-column-header">Lines of Code</div>
-                    <div class="aggregate-column-divider"></div>
-                    <div class="aggregate-column-value">${formatNumber(session.linesOfCode)}</div>
-                </div>
-                <div class="session-aggregate-column">
-                    <div class="aggregate-column-header">Cost</div>
-                    <div class="aggregate-column-divider"></div>
-                    <div class="aggregate-column-value">$${session.totalCost}</div>
-                </div>
+            ${modelBadges ? `<div class="session-card-models">${modelBadges}</div>` : ''}
+            <div class="session-card-footer">
+                <span>${formatNumber(totalTokens)} tok</span>
+                <span>${formatNumber(session.linesOfCode)} LoC</span>
+                <span>${session.totalActiveTime}</span>
+                <span>${formatSessionDuration(session.duration)}</span>
+                <span class="session-card-seen">${formatRelativeTime(session.lastSeen)}</span>
             </div>
         </div>
     `;
 }
 
-// Main render function - now much simpler with helper functions
+// List-based session rendering (minimal theme)
+function renderSessionListItem(session) {
+    const shortId = session.sessionId.split('-')[0];
+    const isActive = session.isActive;
+    const modelFamilies = aggregateModelsByFamily(session.byModel);
+    const activeModel = modelFamilies.find(([, d]) => d.isActive);
+    const modelName = activeModel ? activeModel[1].displayName : '--';
+    const totalTokens = modelFamilies.reduce((sum, [, d]) => sum + calculateModelTotalTokens(d), 0);
+
+    return `
+        <div class="session-list-item ${isActive ? 'active' : ''}">
+            <span class="session-status-dot ${isActive ? 'active' : ''}"></span>
+            <span class="session-list-id">${shortId}</span>
+            <span class="session-list-model">${modelName}</span>
+            <span class="session-list-tokens">${formatNumber(totalTokens)}</span>
+            <span class="session-list-cost">$${session.totalCost}</span>
+            <span class="session-list-loc">${formatNumber(session.linesOfCode)} LoC</span>
+            <span class="session-list-time">${session.totalActiveTime}</span>
+            <span class="session-list-seen">${formatRelativeTime(session.lastSeen)}</span>
+        </div>
+    `;
+}
+
+// Main render function - dispatches to theme-appropriate layout
 function renderSessions() {
     const sessionsSection = document.getElementById('sessions-section');
     const sessionsList = document.getElementById('sessions-list');
@@ -1041,14 +1505,41 @@ function renderSessions() {
     }
 
     // Show section and update stats
-    sessionsSection.style.display = 'block';
+    sessionsSection.style.display = 'flex';
     const activeSessions = sessions.filter(s => s.isActive).length;
     sessionsTotal.textContent = `${sessions.length} total`;
     sessionsActive.textContent = `${activeSessions} active`;
 
-    // Sort by startTime (newest session first) and render
+    // Sort by startTime (newest session first)
     sessions.sort((a, b) => b.startTime - a.startTime);
-    sessionsList.innerHTML = sessions.map(renderSessionCard).join('');
+
+    const mode = ThemeManager.config.renderMode;
+    if (mode === 'cards') {
+        sessionsList.innerHTML = sessions.map(renderSessionCardView).join('');
+    } else if (mode === 'list') {
+        sessionsList.innerHTML = sessions.map(renderSessionListItem).join('');
+    } else {
+        sessionsList.innerHTML = `
+            <table class="sessions-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>Model</th>
+                        <th>Tokens</th>
+                        <th>Cost</th>
+                        <th>LoC</th>
+                        <th>Active</th>
+                        <th>Dur</th>
+                        <th>Seen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sessions.map(renderSessionCard).join('')}
+                </tbody>
+            </table>
+        `;
+    }
 }
 
 // Handle teams snapshot/update
@@ -1069,7 +1560,6 @@ function renderTeamCard(teamName, team) {
     const totalTasks = tasks.length;
     const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-    // Calculate team totals
     let totalCost = 0;
     let totalTokens = 0;
     members.forEach(m => {
@@ -1082,18 +1572,10 @@ function renderTeamCard(teamName, team) {
     const membersHtml = members.map(member => {
         const isActive = member.status === 'active';
         const stats = member.sessionStats || {};
-        return `
-            <div class="team-member ${isActive ? 'active' : ''}">
-                <span class="member-status"></span>
-                <span class="member-name">${escapeHtml(member.name || 'Unknown')}</span>
-                <span class="member-role">${escapeHtml(member.agentType || 'agent')}</span>
-                <span class="member-cost">$${(stats.totalCost || 0).toFixed(2)}</span>
-                <span class="member-tokens">${formatNumber(stats.totalTokens || 0)} tok</span>
-            </div>
-        `;
+        return `<div class="team-member ${isActive ? 'active' : ''}"><span class="member-status"></span><span class="member-name">${escapeHtml(member.name || '??')}</span><span class="member-role">${escapeHtml(member.agentType || 'agent')}</span><span class="member-cost">$${(stats.totalCost || 0).toFixed(2)}</span><span class="member-tokens">${formatNumber(stats.totalTokens || 0)}</span></div>`;
     }).join('');
 
-    const taskListHtml = tasks.slice(0, 5).map(task => {
+    const taskListHtml = tasks.slice(0, 3).map(task => {
         const statusIcon = task.status === 'completed' ? '&#10003;' : task.status === 'in_progress' ? '&#9881;' : '&#9675;';
         const statusClass = task.status || 'pending';
         return `<div class="task-item ${statusClass}"><span class="task-status-icon">${statusIcon}</span> ${escapeHtml(task.subject || task.description || 'Untitled')}</div>`;
@@ -1104,18 +1586,19 @@ function renderTeamCard(teamName, team) {
             <div class="team-card-header">
                 <h3>${escapeHtml(teamName)}</h3>
                 <div class="team-card-stats">
-                    <span>${members.length} members</span>
+                    <span>${members.length}m</span>
                     <span class="separator">|</span>
                     <span>$${totalCost.toFixed(2)}</span>
+                    <span class="separator">|</span>
+                    <span>${formatNumber(totalTokens)} tok</span>
+                    ${totalTasks > 0 ? `<span class="separator">|</span><span>${completedTasks}/${totalTasks} tasks</span>` : ''}
                 </div>
             </div>
             <div class="team-members">${membersHtml}</div>
             ${totalTasks > 0 ? `
                 <div class="task-progress">
-                    <div class="task-progress-bar">
-                        <div class="task-progress-fill" style="width: ${progressPct}%"></div>
-                    </div>
-                    <span class="task-progress-label">${completedTasks}/${totalTasks} tasks (${progressPct}%)</span>
+                    <div class="task-progress-bar"><div class="task-progress-fill" style="width: ${progressPct}%"></div></div>
+                    <span class="task-progress-label">${progressPct}%</span>
                 </div>
                 <div class="task-list-compact">${taskListHtml}</div>
             ` : ''}
@@ -1308,11 +1791,11 @@ function updateWebSocketStatus(status) {
     const lastUpdate = document.getElementById('last-update');
 
     if (status === 'connected') {
-        statusIndicator.style.background = '#4caf50';
-        lastUpdate.textContent = 'Connected (WebSocket)';
+        statusIndicator.style.background = '#00e676';
+        lastUpdate.textContent = 'WS OK';
     } else if (status === 'disconnected') {
-        statusIndicator.style.background = '#f44336';
-        lastUpdate.textContent = 'Disconnected - reconnecting...';
+        statusIndicator.style.background = '#ff5252';
+        lastUpdate.textContent = 'WS DOWN';
     }
 }
 
@@ -1849,17 +2332,17 @@ function updateClaudeUsageSparklines(historyData) {
         if (claudeUsageSparklines.fiveHour) {
             claudeUsageSparklines.fiveHour.data.labels = [];
             claudeUsageSparklines.fiveHour.data.datasets[0].data = [];
-            claudeUsageSparklines.fiveHour.update('none');
+            claudeUsageSparklines.fiveHour.update();
         }
         if (claudeUsageSparklines.sevenDay) {
             claudeUsageSparklines.sevenDay.data.labels = [];
             claudeUsageSparklines.sevenDay.data.datasets[0].data = [];
-            claudeUsageSparklines.sevenDay.update('none');
+            claudeUsageSparklines.sevenDay.update();
         }
         if (claudeUsageSparklines.sonnet) {
             claudeUsageSparklines.sonnet.data.labels = [];
             claudeUsageSparklines.sonnet.data.datasets[0].data = [];
-            claudeUsageSparklines.sonnet.update('none');
+            claudeUsageSparklines.sonnet.update();
         }
         return;
     }
@@ -1871,7 +2354,7 @@ function updateClaudeUsageSparklines(historyData) {
         claudeUsageSparklines.fiveHour.data.labels = timestamps;
         claudeUsageSparklines.fiveHour.data.datasets[0].data =
             historyData.map(d => d.fiveHour);
-        claudeUsageSparklines.fiveHour.update('none');
+        claudeUsageSparklines.fiveHour.update();
     }
 
     // Update 7-day sparkline
@@ -1879,7 +2362,7 @@ function updateClaudeUsageSparklines(historyData) {
         claudeUsageSparklines.sevenDay.data.labels = timestamps;
         claudeUsageSparklines.sevenDay.data.datasets[0].data =
             historyData.map(d => d.sevenDay);
-        claudeUsageSparklines.sevenDay.update('none');
+        claudeUsageSparklines.sevenDay.update();
     }
 
     // Update Sonnet sparkline
@@ -1887,7 +2370,7 @@ function updateClaudeUsageSparklines(historyData) {
         claudeUsageSparklines.sonnet.data.labels = timestamps;
         claudeUsageSparklines.sonnet.data.datasets[0].data =
             historyData.map(d => d.sonnet || 0);
-        claudeUsageSparklines.sonnet.update('none');
+        claudeUsageSparklines.sonnet.update();
     }
 }
 
@@ -2271,6 +2754,18 @@ function restartClaudeUsagePolling() {
 
 // Start Claude.ai usage tracking
 initClaudeUsage();
+
+// Initialize stat card sparklines
+initStatSparklines();
+
+// Initialize theme selector
+const themeSelect = document.getElementById('theme-select');
+if (themeSelect) {
+    themeSelect.addEventListener('change', (e) => {
+        ThemeManager.set(e.target.value);
+    });
+}
+ThemeManager.init();
 
 // Initialize timeframe selector
 const timeframeSelect = document.getElementById('data-timeframe-select');
