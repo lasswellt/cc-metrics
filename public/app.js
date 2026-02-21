@@ -1518,7 +1518,6 @@ function renderSessions() {
     sessionsTotal.textContent = `${sessions.length} total`;
     sessionsActive.textContent = `${activeSessions} active`;
 
-<<<<<<< HEAD
     // Sort by startTime (newest session first)
     sessions.sort((a, b) => b.startTime - a.startTime);
 
