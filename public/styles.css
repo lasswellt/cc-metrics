@@ -288,7 +288,7 @@ h1 .logo-svg {
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: auto auto 1fr 1fr;
+    grid-template-rows: auto auto auto 1fr 1fr;
     gap: 1px;
     flex: 1;
     overflow: hidden;
@@ -477,6 +477,7 @@ h1 .logo-svg {
 .teams-section {
     grid-column: 1 / -1;
     overflow: hidden;
+    background: var(--panel);
 }
 
 .teams-section.hidden {
