@@ -365,6 +365,7 @@ const ThemeManager = {
         if (sel) sel.value = themeName;
         this.applyChartTheme();
         renderSessions();
+        renderTeams();
         if (lastEventsData) updateEvents(lastEventsData);
     },
 
