@@ -1996,56 +1996,30 @@ app.get('/api/events', (req, res) => {
   });
 });
 
-// API endpoint for terminal sessions
-app.get('/api/sessions', (req, res) => {
-  const now = Date.now();
-  const formatMinutes = (seconds) => {
-    if (seconds < 60) return `${seconds.toFixed(1)}s`;
-    return `${(seconds / 60).toFixed(1)}m`;
-  };
+// API endpoint for terminal sessions (queries RethinkDB with timeframe support)
+app.get('/api/sessions', async (req, res) => {
+  try {
+    const timeframe = req.query.timeframe || 'all';
+    const cutoffTime = getTimeframeCutoff(timeframe);
 
-  // Convert sessions object to array and add computed properties
-  const sessionsArray = Object.values(storage.sessions)
-    .filter(session => {
-      // Only show sessions active in the last 5 minutes
-      return (now - session.lastSeen) < 300000; // 5 minutes = 300000ms
-    })
-    .map(session => {
-      const duration = now - session.startTime;
-      const totalActiveTime = session.activeTimeCLI + session.activeTimePlanning + session.activeTimeUser;
-      const isActive = (now - session.lastSeen) < TIME_CONSTANTS.ONE_MINUTE;
+    const cursor = await r.db('metrics')
+      .table('sessions')
+      .filter(r.row('lastSeen').ge(cutoffTime))
+      .orderBy(r.desc('startTime'))
+      .run(dbConnection);
+    const sessions = await cursor.toArray();
 
-      return {
-        sessionId: session.sessionId,
-        terminalType: session.terminalType,
-        startTime: session.startTime,
-        lastSeen: session.lastSeen,
-        duration,
-        isActive,
-        inputTokens: session.inputTokens,
-        outputTokens: session.outputTokens,
-        cacheReadTokens: session.cacheReadTokens,
-        cacheCreationTokens: session.cacheCreationTokens,
-        totalTokens: session.totalTokens,
-        totalCost: session.totalCost.toFixed(4),
-        activeTimeCLI: formatMinutes(session.activeTimeCLI),
-        activeTimePlanning: formatMinutes(session.activeTimePlanning),
-        activeTimeUser: formatMinutes(session.activeTimeUser),
-        totalActiveTime: formatMinutes(totalActiveTime),
-        linesOfCode: session.linesOfCode,
-        commonModeCount: session.commonModeCount || 0,
-        byModel: session.byModel
-      };
+    const formatted = sessions.map(s => formatSessionData(s)).filter(Boolean);
+
+    res.json({
+      sessions: formatted,
+      totalSessions: formatted.length,
+      activeSessions: formatted.filter(s => s.isActive).length
     });
-
-  // Sort by start time (newest session first)
-  sessionsArray.sort((a, b) => b.startTime - a.startTime);
-
-  res.json({
-    sessions: sessionsArray,
-    totalSessions: sessionsArray.length,
-    activeSessions: sessionsArray.filter(s => s.isActive).length
-  });
+  } catch (err) {
+    console.error('Error querying sessions from database:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // API endpoint to get session count for a timeframe (from database)
