@@ -1673,10 +1673,11 @@ app.get('/api/metrics', async (req, res) => {
   try {
     console.log('   Querying database...');
     // Query metrics from RethinkDB within timeframe
+    // orderBy with index must come before filter in RethinkDB
     const metricsCursor = await r.db('metrics')
       .table('metrics')
+      .orderBy({ index: 'timestamp' })
       .filter(r.row('timestamp').ge(cutoffTime))
-      .orderBy('timestamp')
       .run(dbConnection);
 
     console.log('   Database query complete, converting to array...');
