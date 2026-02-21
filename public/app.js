@@ -1238,8 +1238,8 @@ function formatSessionDuration(ms) {
 }
 
 // Handle session snapshot from changefeed
+// Merges into existing sessionsMap so DB-loaded sessions are preserved
 function handleSessionsSnapshot(data) {
-    sessionsMap.clear();
     if (Array.isArray(data)) {
         data.forEach(session => {
             if (session) sessionsMap.set(session.sessionId, session);
@@ -1254,7 +1254,15 @@ function handleSessionUpdate(action, data) {
     if (action === 'add' || action === 'change') {
         if (data) sessionsMap.set(data.sessionId, data);
     } else if (action === 'remove') {
-        if (data && data.sessionId) sessionsMap.delete(data.sessionId);
+        // Mark session as inactive instead of deleting — keeps completed
+        // team agent sessions visible in the sessions panel
+        if (data && data.sessionId) {
+            const existing = sessionsMap.get(data.sessionId);
+            if (existing) {
+                existing.isActive = false;
+                sessionsMap.set(data.sessionId, existing);
+            }
+        }
     }
     renderSessions();
     recordWebSocketActivity();
@@ -1544,8 +1552,8 @@ function renderSessions() {
 
 // Handle teams snapshot/update
 function handleTeamsUpdate(teamsData) {
-    teamsMap.clear();
-    if (teamsData && typeof teamsData === 'object') {
+    if (teamsData && typeof teamsData === 'object' && Object.keys(teamsData).length > 0) {
+        teamsMap.clear();
         Object.entries(teamsData).forEach(([name, team]) => {
             teamsMap.set(name, team);
         });
@@ -1671,13 +1679,15 @@ async function fetchData() {
             updateCostTimeline(metricsData.costHistory);
         }
 
-        // Fetch teams data
-        try {
-            const teamsResponse = await fetch('/api/teams');
-            const teamsData = await teamsResponse.json();
-            handleTeamsUpdate(teamsData);
-        } catch (e) {
-            console.log('Teams endpoint not available');
+        // Only fetch teams via API if WebSocket hasn't provided them yet
+        if (teamsMap.size === 0) {
+            try {
+                const teamsResponse = await fetch('/api/teams');
+                const teamsData = await teamsResponse.json();
+                handleTeamsUpdate(teamsData);
+            } catch (e) {
+                console.log('Teams endpoint not available');
+            }
         }
 
         // Fetch OAuth usage
@@ -1697,7 +1707,23 @@ async function fetchData() {
 
         updateEvents(eventsData);
 
-        // Sessions now updated via WebSocket changefeed (no polling needed)
+        // Fetch all sessions from DB for the timeframe (includes completed team agent sessions)
+        // Changefeed only covers active sessions — DB has the full history
+        try {
+            const sessionsResponse = await fetch(`/api/sessions?timeframe=${timeframe}`);
+            const sessionsData = await sessionsResponse.json();
+            if (sessionsData.sessions && Array.isArray(sessionsData.sessions)) {
+                sessionsData.sessions.forEach(session => {
+                    // Only add if not already present (changefeed has fresher data for active sessions)
+                    if (!sessionsMap.has(session.sessionId)) {
+                        sessionsMap.set(session.sessionId, session);
+                    }
+                });
+                renderSessions();
+            }
+        } catch (e) {
+            console.log('Sessions fetch not available, relying on changefeed');
+        }
 
         // Update last update time
         document.getElementById('last-update').textContent =
@@ -2767,6 +2793,87 @@ if (themeSelect) {
 }
 ThemeManager.init();
 
+// System Health tracking
+const systemHealth = {
+    startTime: Date.now(),
+    eventTimestamps: [],    // rolling window for rate calc
+    totalEvents: 0,
+    wsStatus: 'disconnected',
+
+    recordEvent() {
+        const now = Date.now();
+        this.totalEvents++;
+        this.eventTimestamps.push(now);
+        // Keep only last 60s of timestamps for rate calculation
+        const cutoff = now - 60000;
+        while (this.eventTimestamps.length > 0 && this.eventTimestamps[0] < cutoff) {
+            this.eventTimestamps.shift();
+        }
+    },
+
+    getRate() {
+        const now = Date.now();
+        const cutoff = now - 60000;
+        while (this.eventTimestamps.length > 0 && this.eventTimestamps[0] < cutoff) {
+            this.eventTimestamps.shift();
+        }
+        return this.eventTimestamps.length;
+    },
+
+    formatUptime() {
+        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+        if (elapsed < 60) return elapsed + 's';
+        if (elapsed < 3600) return Math.floor(elapsed / 60) + 'm';
+        const h = Math.floor(elapsed / 3600);
+        const m = Math.floor((elapsed % 3600) / 60);
+        return h + 'h' + (m > 0 ? m + 'm' : '');
+    },
+
+    update() {
+        const uptimeEl = document.getElementById('sys-uptime');
+        const wsEl = document.getElementById('sys-ws-status');
+        const rateEl = document.getElementById('sys-event-rate');
+        const countEl = document.getElementById('sys-event-count');
+        const modelsEl = document.getElementById('sys-model-count');
+
+        if (uptimeEl) uptimeEl.textContent = this.formatUptime();
+        if (wsEl) {
+            const connected = this.wsStatus === 'connected';
+            wsEl.textContent = connected ? 'LIVE' : 'DOWN';
+            wsEl.className = 'val ' + (connected ? 'green' : 'red');
+        }
+        if (rateEl) rateEl.textContent = this.getRate() + '/m';
+        if (countEl) countEl.textContent = this.totalEvents.toLocaleString();
+        if (modelsEl) {
+            // Count unique models from sessions
+            const models = new Set();
+            sessionsMap.forEach(s => {
+                if (s.models) {
+                    Object.keys(s.models).forEach(m => models.add(m));
+                }
+            });
+            modelsEl.textContent = models.size;
+        }
+    }
+};
+
+// Update system health every second
+setInterval(() => systemHealth.update(), 1000);
+
+// Patch updateWebSocketStatus to feed systemHealth
+const _origUpdateWsStatus = updateWebSocketStatus;
+updateWebSocketStatus = function(status) {
+    systemHealth.wsStatus = status;
+    _origUpdateWsStatus(status);
+};
+
+// Patch handleWebSocketUpdate to count events
+const _origHandleWsUpdate = handleWebSocketUpdate;
+handleWebSocketUpdate = function() {
+    systemHealth.recordEvent();
+    _origHandleWsUpdate();
+};
+
 // Initialize timeframe selector
 const timeframeSelect = document.getElementById('data-timeframe-select');
 if (timeframeSelect) {
@@ -2778,15 +2885,27 @@ if (timeframeSelect) {
     timeframeSelect.addEventListener('change', async function() {
         const newTimeframe = this.value;
         saveDataTimeframe(newTimeframe);
-        
+
         if (USE_CHANGEFEED_METRICS && metricsDashboard) {
             // Use changefeed approach - instant update, no network request
             metricsDashboard.onTimeframeChange(newTimeframe);
+            // Re-fetch sessions from DB for the new timeframe
+            try {
+                sessionsMap.clear();
+                const resp = await fetch(`/api/sessions?timeframe=${newTimeframe}`);
+                const data = await resp.json();
+                if (data.sessions) {
+                    data.sessions.forEach(s => sessionsMap.set(s.sessionId, s));
+                }
+                renderSessions();
+            } catch (e) {
+                console.log('Session re-fetch failed:', e);
+            }
         } else {
             // Use polling approach - fetch from server
             await fetchData();
         }
-        
+
         console.log(`📅 Data timeframe changed to: ${newTimeframe}`);
     });
 }
