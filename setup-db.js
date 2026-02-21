@@ -33,7 +33,7 @@ async function main() {
 
     console.log('\n✨ Database setup complete!');
     console.log('   You can now start the server with: npm start');
-    console.log('   Or access RethinkDB admin UI at: http://localhost:8080\n');
+    console.log('   Or access RethinkDB admin UI at: http://localhost:8081\n');
 
     process.exit(0);
 
@@ -44,7 +44,7 @@ async function main() {
       console.error('  Option 1 (Local):');
       console.error('    rethinkdb\n');
       console.error('  Option 2 (Docker):');
-      console.error('    docker run -d --name rethinkdb -p 28015:28015 -p 8080:8080 rethinkdb\n');
+      console.error('    docker run -d --name rethinkdb -p 28015:28015 -p 8081:8080 rethinkdb\n');
       console.error('After starting RethinkDB, run this script again: npm run setup\n');
       process.exit(1);
     } else if (error.code === 'ETIMEDOUT' || error.code === 'EHOSTUNREACH') {
@@ -60,7 +60,7 @@ async function main() {
       console.error('\nPlease check:');
       console.error('  - RethinkDB is running and accessible');
       console.error('  - You have permissions to create databases and tables');
-      console.error('  - RethinkDB admin UI for more details: http://localhost:8080\n');
+      console.error('  - RethinkDB admin UI for more details: http://localhost:8081\n');
       process.exit(1);
     }
   } finally {

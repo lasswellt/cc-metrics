@@ -37,9 +37,9 @@ curl http://localhost:4318/api/debug/stats-comparison    # Compare session total
 
 ### Database
 ```bash
-rethinkdb                                # Start RethinkDB server
+rethinkdb --http-port 8081               # Start RethinkDB server (web UI on port 8081)
 docker run -d --name rethinkdb \        # Run RethinkDB in Docker
-  -p 28015:28015 -p 8080:8080 rethinkdb
+  -p 28015:28015 -p 8081:8080 rethinkdb
 ```
 
 ## Git Workflow
@@ -244,7 +244,7 @@ telnet localhost 28015
    rethinkdb
 
    # Option 2: Docker
-   docker run -d --name rethinkdb -p 28015:28015 -p 8080:8080 rethinkdb
+   docker run -d --name rethinkdb -p 28015:28015 -p 8081:8080 rethinkdb
 
    # Option 3: Start existing Docker container
    docker start rethinkdb
@@ -314,7 +314,7 @@ curl http://localhost:4318/api/debug/metrics | jq
 **Step 4: Check RethinkDB Data**
 ```bash
 # Access RethinkDB admin UI
-open http://localhost:8080
+open http://localhost:8081
 
 # Or query via Data Explorer:
 # r.db('metrics').table('metrics').count()
@@ -461,7 +461,7 @@ curl http://localhost:4318/api/debug/metrics | jq '.[] | {name: .name, sessionId
 curl http://localhost:4318/api/debug/metrics | jq 'length'  # Should be ≤1000
 
 # Check database size
-# In RethinkDB admin UI (http://localhost:8080):
+# In RethinkDB admin UI (http://localhost:8081):
 # r.db('metrics').table('metrics').count()
 ```
 
@@ -552,7 +552,7 @@ When modifying metrics processing:
 3. Check console for incoming metrics
 4. Verify data in dashboard (http://localhost:3000)
 5. Use `/api/debug/stats-comparison` to verify aggregation accuracy
-6. Check RethinkDB admin UI (http://localhost:8080) for database state
+6. Check RethinkDB admin UI (http://localhost:8081) for database state
 
 ## Key Files
 

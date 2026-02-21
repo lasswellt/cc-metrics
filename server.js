@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const axios = require('axios');
 const { Browser, Curl, impersonate } = require('node-libcurl-ja3');
 const WebSocket = require('ws');
@@ -8,6 +10,7 @@ const http = require('http');
 const { setupDatabase } = require('./db-setup');
 const rateLimit = require('express-rate-limit');
 const { r, dbConfig, connect } = require('./config/database');
+const TeamWatcher = require('./team-watcher');
 
 const app = express();
 const server = http.createServer(app);
@@ -286,6 +289,27 @@ function parseMetricToFieldUpdates(metricName, value, attributes) {
 
     case 'claude_code.lines_of_code.count':
       fieldUpdates.linesOfCode = value;
+      if (attributes.type === 'added') {
+        fieldUpdates.linesAdded = value;
+      } else if (attributes.type === 'removed') {
+        fieldUpdates.linesRemoved = value;
+      }
+      break;
+
+    case 'claude_code.pull_request.count':
+      fieldUpdates.pullRequests = value;
+      break;
+
+    case 'claude_code.commit.count':
+      fieldUpdates.commits = value;
+      break;
+
+    case 'claude_code.code_edit_tool.decision':
+      if (attributes.decision === 'accept') {
+        fieldUpdates.codeEditAccepts = value;
+      } else if (attributes.decision === 'reject') {
+        fieldUpdates.codeEditRejects = value;
+      }
       break;
 
     case 'claude_code.hook.commands_blocked':
@@ -557,13 +581,19 @@ const storage = {
     activeTimePlanning: 0,
     activeTimeUser: 0,
     linesOfCode: 0,
+    pullRequests: 0,
+    commits: 0,
+    codeEditAccepts: 0,
+    codeEditRejects: 0,
+    linesAdded: 0,
+    linesRemoved: 0,
     commandsBlocked: 0,
     gitFailures: 0,
     filesModified: 0,
     toolCalls: 0,
     byModel: {}
   },
-  
+
   // Usage limits and weekly tracking
   usageLimits: {
     dailyTokenLimit: 0, // 0 = no limit, set via API
@@ -623,6 +653,12 @@ const storage = {
 
     // Code stats
     linesOfCode: 0,
+    pullRequests: 0,
+    commits: 0,
+    codeEditAccepts: 0,
+    codeEditRejects: 0,
+    linesAdded: 0,
+    linesRemoved: 0,
 
     // Hook metrics
     commandsBlocked: 0,
@@ -694,6 +730,22 @@ wss.on('connection', (ws) => {
       data: bucketsArray
     }));
     console.log('📊 Sent', metricBucketsCache.size, 'metric buckets to new client');
+  }
+
+  // Send teams snapshot to new client
+  if (teamWatcher) {
+    const teamsData = {};
+    teamWatcher.getTeams().forEach((team, name) => {
+      teamsData[name] = team;
+    });
+    if (Object.keys(teamsData).length > 0) {
+      ws.send(JSON.stringify({
+        type: 'teams_snapshot',
+        timestamp: Date.now(),
+        data: teamsData
+      }));
+      console.log('👥 Sent teams snapshot to new client');
+    }
   }
 });
 
@@ -815,6 +867,12 @@ async function upsertSession(sessionId, terminalType, metricName, value, model, 
             activeTimePlanning: session('activeTimePlanning').default(0).add(fieldUpdates.activeTimePlanning || 0),
             activeTimeUser: session('activeTimeUser').default(0).add(fieldUpdates.activeTimeUser || 0),
             linesOfCode: session('linesOfCode').default(0).add(fieldUpdates.linesOfCode || 0),
+            pullRequests: session('pullRequests').default(0).add(fieldUpdates.pullRequests || 0),
+            commits: session('commits').default(0).add(fieldUpdates.commits || 0),
+            codeEditAccepts: session('codeEditAccepts').default(0).add(fieldUpdates.codeEditAccepts || 0),
+            codeEditRejects: session('codeEditRejects').default(0).add(fieldUpdates.codeEditRejects || 0),
+            linesAdded: session('linesAdded').default(0).add(fieldUpdates.linesAdded || 0),
+            linesRemoved: session('linesRemoved').default(0).add(fieldUpdates.linesRemoved || 0),
             commonModeCount: session('commonModeCount').default(0).add(fieldUpdates.commonModeCount || 0),
             byModel: session('byModel').default({}).merge(
               r.object(model,
@@ -846,6 +904,12 @@ async function upsertSession(sessionId, terminalType, metricName, value, model, 
             activeTimePlanning: fieldUpdates.activeTimePlanning || 0,
             activeTimeUser: fieldUpdates.activeTimeUser || 0,
             linesOfCode: fieldUpdates.linesOfCode || 0,
+            pullRequests: fieldUpdates.pullRequests || 0,
+            commits: fieldUpdates.commits || 0,
+            codeEditAccepts: fieldUpdates.codeEditAccepts || 0,
+            codeEditRejects: fieldUpdates.codeEditRejects || 0,
+            linesAdded: fieldUpdates.linesAdded || 0,
+            linesRemoved: fieldUpdates.linesRemoved || 0,
             commonModeCount: fieldUpdates.commonModeCount || 0,
             byModel: r.object(model, {
               inputTokens: byModelUpdates.inputTokens || 0,
@@ -892,6 +956,12 @@ async function updateMetricBucket(timestamp, metricName, value, attributes) {
             activeTimePlanning: bucket('activeTimePlanning').default(0).add(fieldUpdates.activeTimePlanning || 0),
             activeTimeUser: bucket('activeTimeUser').default(0).add(fieldUpdates.activeTimeUser || 0),
             linesOfCode: bucket('linesOfCode').default(0).add(fieldUpdates.linesOfCode || 0),
+            pullRequests: bucket('pullRequests').default(0).add(fieldUpdates.pullRequests || 0),
+            commits: bucket('commits').default(0).add(fieldUpdates.commits || 0),
+            codeEditAccepts: bucket('codeEditAccepts').default(0).add(fieldUpdates.codeEditAccepts || 0),
+            codeEditRejects: bucket('codeEditRejects').default(0).add(fieldUpdates.codeEditRejects || 0),
+            linesAdded: bucket('linesAdded').default(0).add(fieldUpdates.linesAdded || 0),
+            linesRemoved: bucket('linesRemoved').default(0).add(fieldUpdates.linesRemoved || 0),
             commandsBlocked: bucket('commandsBlocked').default(0).add(fieldUpdates.commandsBlocked || 0),
             gitFailures: bucket('gitFailures').default(0).add(fieldUpdates.gitFailures || 0),
             filesModified: bucket('filesModified').default(0).add(fieldUpdates.filesModified || 0),
@@ -927,6 +997,12 @@ async function updateMetricBucket(timestamp, metricName, value, attributes) {
             activeTimePlanning: fieldUpdates.activeTimePlanning || 0,
             activeTimeUser: fieldUpdates.activeTimeUser || 0,
             linesOfCode: fieldUpdates.linesOfCode || 0,
+            pullRequests: fieldUpdates.pullRequests || 0,
+            commits: fieldUpdates.commits || 0,
+            codeEditAccepts: fieldUpdates.codeEditAccepts || 0,
+            codeEditRejects: fieldUpdates.codeEditRejects || 0,
+            linesAdded: fieldUpdates.linesAdded || 0,
+            linesRemoved: fieldUpdates.linesRemoved || 0,
             commandsBlocked: fieldUpdates.commandsBlocked || 0,
             gitFailures: fieldUpdates.gitFailures || 0,
             filesModified: fieldUpdates.filesModified || 0,
@@ -974,6 +1050,12 @@ async function updateAggregatedStats(metricName, value, attributes) {
           activeTimePlanning: row('activeTimePlanning').default(0).add(fieldUpdates.activeTimePlanning || 0),
           activeTimeUser: row('activeTimeUser').default(0).add(fieldUpdates.activeTimeUser || 0),
           linesOfCode: row('linesOfCode').default(0).add(fieldUpdates.linesOfCode || 0),
+          pullRequests: row('pullRequests').default(0).add(fieldUpdates.pullRequests || 0),
+          commits: row('commits').default(0).add(fieldUpdates.commits || 0),
+          codeEditAccepts: row('codeEditAccepts').default(0).add(fieldUpdates.codeEditAccepts || 0),
+          codeEditRejects: row('codeEditRejects').default(0).add(fieldUpdates.codeEditRejects || 0),
+          linesAdded: row('linesAdded').default(0).add(fieldUpdates.linesAdded || 0),
+          linesRemoved: row('linesRemoved').default(0).add(fieldUpdates.linesRemoved || 0),
           commandsBlocked: row('commandsBlocked').default(0).add(fieldUpdates.commandsBlocked || 0),
           gitFailures: row('gitFailures').default(0).add(fieldUpdates.gitFailures || 0),
           filesModified: row('filesModified').default(0).add(fieldUpdates.filesModified || 0),
@@ -1041,6 +1123,11 @@ app.post('/v1/metrics', otlpRateLimiter, validateOTLPPayload, (req, res) => {
               const sessionId = attributes['session.id'];
               const terminalType = attributes['terminal.type'] || 'unknown';
 
+              // Attempt team correlation
+              if (sessionId && teamWatcher) {
+                teamWatcher.correlateSession(sessionId, timestamp);
+              }
+
               // Track terminal sessions
               if (sessionId && !storage.sessions[sessionId]) {
                 storage.sessions[sessionId] = {
@@ -1058,6 +1145,12 @@ app.post('/v1/metrics', otlpRateLimiter, validateOTLPPayload, (req, res) => {
                   activeTimePlanning: 0,
                   activeTimeUser: 0,
                   linesOfCode: 0,
+                  pullRequests: 0,
+                  commits: 0,
+                  codeEditAccepts: 0,
+                  codeEditRejects: 0,
+                  linesAdded: 0,
+                  linesRemoved: 0,
                   commonModeCount: 0,
                   byModel: {}
                 };
@@ -1222,6 +1315,51 @@ app.post('/v1/metrics', otlpRateLimiter, validateOTLPPayload, (req, res) => {
                   storage.currentSession.linesOfCode += value;
                   if (sessionId && storage.sessions[sessionId]) {
                     storage.sessions[sessionId].linesOfCode += value;
+                  }
+                  if (attributes.type === 'added') {
+                    storage.aggregated.linesAdded += value;
+                    storage.currentSession.linesAdded += value;
+                    if (sessionId && storage.sessions[sessionId]) {
+                      storage.sessions[sessionId].linesAdded += value;
+                    }
+                  } else if (attributes.type === 'removed') {
+                    storage.aggregated.linesRemoved += value;
+                    storage.currentSession.linesRemoved += value;
+                    if (sessionId && storage.sessions[sessionId]) {
+                      storage.sessions[sessionId].linesRemoved += value;
+                    }
+                  }
+                  break;
+
+                case 'claude_code.pull_request.count':
+                  storage.aggregated.pullRequests += value;
+                  storage.currentSession.pullRequests += value;
+                  if (sessionId && storage.sessions[sessionId]) {
+                    storage.sessions[sessionId].pullRequests += value;
+                  }
+                  break;
+
+                case 'claude_code.commit.count':
+                  storage.aggregated.commits += value;
+                  storage.currentSession.commits += value;
+                  if (sessionId && storage.sessions[sessionId]) {
+                    storage.sessions[sessionId].commits += value;
+                  }
+                  break;
+
+                case 'claude_code.code_edit_tool.decision':
+                  if (attributes.decision === 'accept') {
+                    storage.aggregated.codeEditAccepts += value;
+                    storage.currentSession.codeEditAccepts += value;
+                    if (sessionId && storage.sessions[sessionId]) {
+                      storage.sessions[sessionId].codeEditAccepts += value;
+                    }
+                  } else if (attributes.decision === 'reject') {
+                    storage.aggregated.codeEditRejects += value;
+                    storage.currentSession.codeEditRejects += value;
+                    if (sessionId && storage.sessions[sessionId]) {
+                      storage.sessions[sessionId].codeEditRejects += value;
+                    }
                   }
                   break;
 
@@ -1399,6 +1537,29 @@ app.post('/v1/logs', otlpRateLimiter, validateOTLPPayload, (req, res) => {
             // Fallback to 'unknown'
             if (!eventType) {
               eventType = 'unknown';
+            }
+
+            // Enrich event for dashboard display based on type
+            // Note: RethinkDB rejects undefined fields, so only include defined values
+            if (eventType === 'claude_code.api_request') {
+              const d = {};
+              if (attributes.model !== undefined) d.model = attributes.model;
+              if (attributes.cost_usd !== undefined) d.cost = attributes.cost_usd;
+              if (attributes.duration_ms !== undefined) d.duration = attributes.duration_ms;
+              attributes._display = d;
+            } else if (eventType === 'claude_code.tool_result') {
+              const d = {};
+              if (attributes.tool_name !== undefined) d.tool = attributes.tool_name;
+              if (attributes.success !== undefined) d.success = attributes.success;
+              if (attributes.duration_ms !== undefined) d.duration = attributes.duration_ms;
+              if (attributes.decision !== undefined) d.decision = attributes.decision;
+              attributes._display = d;
+            } else if (eventType === 'claude_code.api_error') {
+              const d = {};
+              if (attributes.model !== undefined) d.model = attributes.model;
+              if (attributes.error !== undefined) d.error = attributes.error;
+              if (attributes.status_code !== undefined) d.status = attributes.status_code;
+              attributes._display = d;
             }
 
             // Store event in-memory
@@ -1982,6 +2143,282 @@ app.post('/api/reset-session', (req, res) => {
     });
   }
 });
+
+// ============================================================================
+// Agent Teams API
+// ============================================================================
+
+// Team watcher instance (initialized in startServer)
+let teamWatcher = null;
+
+// GET /api/teams - Returns all active teams with enriched member data
+app.get('/api/teams', (req, res) => {
+  if (!teamWatcher) {
+    return res.json({});
+  }
+
+  const teams = teamWatcher.getTeams();
+  const result = {};
+
+  teams.forEach((team, teamName) => {
+    // Enrich members with session stats if available
+    const enrichedMembers = (team.members || []).map(member => {
+      let sessionStats = null;
+
+      // Search sessionToTeam map for sessions linked to this member
+      for (const [sessionId, info] of teamWatcher.sessionToTeam.entries()) {
+        if (info.teamName === teamName && info.memberName === member.name) {
+          const session = storage.sessions[sessionId];
+          if (session) {
+            sessionStats = {
+              totalTokens: session.totalTokens || 0,
+              totalCost: session.totalCost || 0,
+              linesOfCode: session.linesOfCode || 0,
+              activeTimeCLI: session.activeTimeCLI || 0
+            };
+          }
+          break;
+        }
+      }
+
+      return {
+        ...member,
+        sessionStats,
+        status: sessionStats ? 'active' : 'idle'
+      };
+    });
+
+    result[teamName] = {
+      ...team,
+      members: enrichedMembers
+    };
+  });
+
+  res.json(result);
+});
+
+// POST /api/teams/link-session - Manual session-to-member override
+app.post('/api/teams/link-session', (req, res) => {
+  const { sessionId, teamName, memberName } = req.body;
+
+  if (!sessionId || !teamName || !memberName) {
+    return res.status(400).json({ error: 'sessionId, teamName, and memberName are required' });
+  }
+
+  if (!teamWatcher) {
+    return res.status(503).json({ error: 'Team watcher not initialized' });
+  }
+
+  teamWatcher.linkSession(sessionId, teamName, memberName);
+  res.json({ success: true });
+});
+
+// ============================================================================
+// OAuth Usage API
+// ============================================================================
+
+/**
+ * Read Claude Code OAuth token from credentials file.
+ * Tries multiple locations and falls back to environment variable.
+ * @returns {{ accessToken: string, expiresAt: string } | null}
+ */
+function readClaudeOAuthToken() {
+  const credentialPaths = [
+    path.join(os.homedir(), '.config', 'Claude', 'claude_code_credentials.json'),
+    path.join(os.homedir(), '.claude', '.credentials.json')
+  ];
+
+  for (const credPath of credentialPaths) {
+    try {
+      if (fs.existsSync(credPath)) {
+        const data = JSON.parse(fs.readFileSync(credPath, 'utf8'));
+        if (data.accessToken || data.access_token) {
+          const token = data.accessToken || data.access_token;
+          const expiresAt = data.expiresAt || data.expires_at;
+
+          if (expiresAt && new Date(expiresAt) < new Date()) {
+            console.warn(`⚠️  OAuth token from ${credPath} is expired`);
+            continue;
+          }
+
+          debugLog(`🔑 Found OAuth token at ${credPath}`);
+          return { accessToken: token, expiresAt };
+        }
+      }
+    } catch (err) {
+      debugLog(`Failed to read credentials from ${credPath}:`, err.message);
+    }
+  }
+
+  // Fall back to environment variable
+  if (process.env.CLAUDE_OAUTH_TOKEN) {
+    debugLog('🔑 Using OAuth token from CLAUDE_OAUTH_TOKEN env var');
+    return { accessToken: process.env.CLAUDE_OAUTH_TOKEN, expiresAt: null };
+  }
+
+  return null;
+}
+
+/**
+ * Compute pacing target for a usage window.
+ * @param {string} resetsAt - ISO timestamp when the window resets
+ * @param {number} windowSeconds - Total window duration in seconds
+ * @returns {number} Target utilization percentage
+ */
+function computePacingTarget(resetsAt, windowSeconds) {
+  const now = Date.now();
+  const resetTime = new Date(resetsAt).getTime();
+  const windowStart = resetTime - (windowSeconds * 1000);
+  const elapsed = (now - windowStart) / 1000;
+  return Math.min(100, Math.max(0, (elapsed / windowSeconds) * 100));
+}
+
+/**
+ * Determine pacing status based on utilization vs target.
+ * @param {number} utilization - Current utilization percentage
+ * @param {number} target - Target utilization percentage
+ * @returns {'under' | 'on_pace' | 'over'}
+ */
+function getPacingStatus(utilization, target) {
+  const diff = utilization - target;
+  if (diff > 10) return 'over';
+  if (diff > -5) return 'on_pace';
+  return 'under';
+}
+
+// GET /api/oauth-usage - Fetch usage via OAuth API
+app.get('/api/oauth-usage', async (req, res) => {
+  const token = readClaudeOAuthToken();
+
+  if (!token) {
+    return res.json({ success: false, reason: 'no_token' });
+  }
+
+  try {
+    const response = await axios.get('https://api.anthropic.com/api/oauth/usage', {
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'anthropic-beta': 'oauth-2025-04-20'
+      },
+      timeout: 10000
+    });
+
+    const data = response.data;
+
+    // Enrich with pacing targets
+    const FIVE_HOUR_WINDOW = 18000;
+    const SEVEN_DAY_WINDOW = 604800;
+
+    if (data.five_hour && data.five_hour.resets_at) {
+      data.five_hour.pacing_target = computePacingTarget(data.five_hour.resets_at, FIVE_HOUR_WINDOW);
+      data.five_hour.status = getPacingStatus(data.five_hour.utilization, data.five_hour.pacing_target);
+    }
+
+    if (data.seven_day && data.seven_day.resets_at) {
+      data.seven_day.pacing_target = computePacingTarget(data.seven_day.resets_at, SEVEN_DAY_WINDOW);
+      data.seven_day.status = getPacingStatus(data.seven_day.utilization, data.seven_day.pacing_target);
+    }
+
+    if (data.seven_day_opus && data.seven_day_opus.resets_at) {
+      data.seven_day_opus.pacing_target = computePacingTarget(data.seven_day_opus.resets_at, SEVEN_DAY_WINDOW);
+      data.seven_day_opus.status = getPacingStatus(data.seven_day_opus.utilization, data.seven_day_opus.pacing_target);
+    }
+
+    if (data.seven_day_sonnet && data.seven_day_sonnet.resets_at) {
+      data.seven_day_sonnet.pacing_target = computePacingTarget(data.seven_day_sonnet.resets_at, SEVEN_DAY_WINDOW);
+      data.seven_day_sonnet.status = getPacingStatus(data.seven_day_sonnet.utilization, data.seven_day_sonnet.pacing_target);
+    }
+
+    // Save to claude_usage_history table for sparklines
+    if (dbConnection) {
+      try {
+        await r.db('metrics').table('claude_usage_history').insert({
+          timestamp: Date.now(),
+          fiveHourUtilization: data.five_hour?.utilization || 0,
+          sevenDayUtilization: data.seven_day?.utilization || 0,
+          sonnetUtilization: data.seven_day_sonnet?.utilization || 0,
+          opusUtilization: data.seven_day_opus?.utilization || 0,
+          source: 'oauth'
+        }).run(dbConnection);
+      } catch (err) {
+        debugLog('Error saving OAuth usage to history:', err.message);
+      }
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching OAuth usage:', error.message);
+    res.json({
+      success: false,
+      reason: 'api_error',
+      error: error.message
+    });
+  }
+});
+
+// Poll OAuth usage periodically and broadcast via WebSocket
+let oauthPollInterval = null;
+
+async function pollOAuthUsage() {
+  const token = readClaudeOAuthToken();
+  if (!token) return;
+
+  try {
+    const response = await axios.get('https://api.anthropic.com/api/oauth/usage', {
+      headers: {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'anthropic-beta': 'oauth-2025-04-20'
+      },
+      timeout: 10000
+    });
+
+    const data = response.data;
+
+    const FIVE_HOUR_WINDOW = 18000;
+    const SEVEN_DAY_WINDOW = 604800;
+
+    if (data.five_hour && data.five_hour.resets_at) {
+      data.five_hour.pacing_target = computePacingTarget(data.five_hour.resets_at, FIVE_HOUR_WINDOW);
+      data.five_hour.status = getPacingStatus(data.five_hour.utilization, data.five_hour.pacing_target);
+    }
+
+    if (data.seven_day && data.seven_day.resets_at) {
+      data.seven_day.pacing_target = computePacingTarget(data.seven_day.resets_at, SEVEN_DAY_WINDOW);
+      data.seven_day.status = getPacingStatus(data.seven_day.utilization, data.seven_day.pacing_target);
+    }
+
+    if (data.seven_day_opus && data.seven_day_opus.resets_at) {
+      data.seven_day_opus.pacing_target = computePacingTarget(data.seven_day_opus.resets_at, SEVEN_DAY_WINDOW);
+      data.seven_day_opus.status = getPacingStatus(data.seven_day_opus.utilization, data.seven_day_opus.pacing_target);
+    }
+
+    if (data.seven_day_sonnet && data.seven_day_sonnet.resets_at) {
+      data.seven_day_sonnet.pacing_target = computePacingTarget(data.seven_day_sonnet.resets_at, SEVEN_DAY_WINDOW);
+      data.seven_day_sonnet.status = getPacingStatus(data.seven_day_sonnet.utilization, data.seven_day_sonnet.pacing_target);
+    }
+
+    // Save to history (use same field names as cookie-based path for compatibility)
+    if (dbConnection) {
+      try {
+        await r.db('metrics').table('claude_usage_history').insert({
+          timestamp: Date.now(),
+          fiveHourUtilization: data.five_hour?.utilization || 0,
+          sevenDayUtilization: data.seven_day?.utilization || 0,
+          sonnetUtilization: data.seven_day_sonnet?.utilization || 0,
+          opusUtilization: data.seven_day_opus?.utilization || 0,
+          source: 'oauth'
+        }).run(dbConnection);
+      } catch (err) {
+        debugLog('Error saving OAuth usage to history:', err.message);
+      }
+    }
+
+    // Broadcast to WebSocket clients
+    broadcastUpdate('oauth_usage_update', data);
+  } catch (error) {
+    debugLog('OAuth usage poll error:', error.message);
+  }
+}
 
 // Test endpoint to verify session key
 app.post('/api/test-claude-session', validateCookieString, async (req, res) => {
@@ -2920,6 +3357,12 @@ function formatSessionData(session) {
     activeTimeUser: formatMinutes(session.activeTimeUser || 0),
     totalActiveTime: formatMinutes(totalActiveTime),
     linesOfCode: session.linesOfCode || 0,
+    pullRequests: session.pullRequests || 0,
+    commits: session.commits || 0,
+    codeEditAccepts: session.codeEditAccepts || 0,
+    codeEditRejects: session.codeEditRejects || 0,
+    linesAdded: session.linesAdded || 0,
+    linesRemoved: session.linesRemoved || 0,
     commonModeCount: session.commonModeCount || 0,
     byModel: session.byModel || {}
   };
@@ -2999,6 +3442,12 @@ async function recalculateAggregatedStatsFromSessions() {
       activeTimePlanning: 0,
       activeTimeUser: 0,
       linesOfCode: 0,
+      pullRequests: 0,
+      commits: 0,
+      codeEditAccepts: 0,
+      codeEditRejects: 0,
+      linesAdded: 0,
+      linesRemoved: 0,
       commandsBlocked: 0,
       gitFailures: 0,
       filesModified: 0,
@@ -3017,6 +3466,12 @@ async function recalculateAggregatedStatsFromSessions() {
       aggregated.activeTimePlanning += session.activeTimePlanning || 0;
       aggregated.activeTimeUser += session.activeTimeUser || 0;
       aggregated.linesOfCode += session.linesOfCode || 0;
+      aggregated.pullRequests += session.pullRequests || 0;
+      aggregated.commits += session.commits || 0;
+      aggregated.codeEditAccepts += session.codeEditAccepts || 0;
+      aggregated.codeEditRejects += session.codeEditRejects || 0;
+      aggregated.linesAdded += session.linesAdded || 0;
+      aggregated.linesRemoved += session.linesRemoved || 0;
       aggregated.commandsBlocked += session.commandsBlocked || 0;
       aggregated.gitFailures += session.gitFailures || 0;
       aggregated.filesModified += session.filesModified || 0;
@@ -3139,6 +3594,12 @@ function formatAggregatedData(stats) {
     activeTimePlanning: formatTime(stats.activeTimePlanning || 0),
     activeTimeUser: formatTime(stats.activeTimeUser || 0),
     linesOfCode: stats.linesOfCode || 0,
+    pullRequests: stats.pullRequests || 0,
+    commits: stats.commits || 0,
+    codeEditAccepts: stats.codeEditAccepts || 0,
+    codeEditRejects: stats.codeEditRejects || 0,
+    linesAdded: stats.linesAdded || 0,
+    linesRemoved: stats.linesRemoved || 0,
     commandsBlocked: stats.commandsBlocked || 0,
     gitFailures: stats.gitFailures || 0,
     filesModified: stats.filesModified || 0,
@@ -3163,6 +3624,12 @@ function formatBucketData(bucket) {
     activeTimePlanning: bucket.activeTimePlanning || 0,
     activeTimeUser: bucket.activeTimeUser || 0,
     linesOfCode: bucket.linesOfCode || 0,
+    pullRequests: bucket.pullRequests || 0,
+    commits: bucket.commits || 0,
+    codeEditAccepts: bucket.codeEditAccepts || 0,
+    codeEditRejects: bucket.codeEditRejects || 0,
+    linesAdded: bucket.linesAdded || 0,
+    linesRemoved: bucket.linesRemoved || 0,
     commandsBlocked: bucket.commandsBlocked || 0,
     gitFailures: bucket.gitFailures || 0,
     filesModified: bucket.filesModified || 0,
@@ -3421,6 +3888,18 @@ async function startServer() {
     // Recalculate aggregated stats to ensure "All Time" data is accurate
     await recalculateAggregatedStatsFromSessions();
 
+    // Initialize team watcher
+    teamWatcher = new TeamWatcher();
+    teamWatcher.start();
+    teamWatcher.on('team_change', () => {
+      const teamsData = {};
+      teamWatcher.getTeams().forEach((team, name) => {
+        teamsData[name] = team;
+      });
+      broadcastUpdate('team_update', teamsData);
+    });
+    console.log('👥 Team watcher started');
+
     // Start session changefeed for real-time streaming
     await startSessionChangefeed();
 
@@ -3456,6 +3935,10 @@ async function startServer() {
       setInterval(() => {
         cleanupClaudeUsageHistory();
       }, TIME_CONSTANTS.ONE_DAY);
+
+      // Start OAuth usage polling (every 60 seconds)
+      pollOAuthUsage(); // Initial poll
+      oauthPollInterval = setInterval(pollOAuthUsage, 60 * 1000);
     });
   } catch (err) {
     console.error('Failed to start server:', err);
