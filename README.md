@@ -33,16 +33,48 @@ This dashboard taps into Claude Code's built-in OpenTelemetry metrics to give yo
 
 ## 🚀 Quick Start
 
-Get up and running in **under 5 minutes**! The database initializes automatically—no manual setup needed.
+Get up and running in **under 5 minutes**! Choose Docker (recommended) or manual install.
 
-### Prerequisites
+### Option A: Docker (Recommended)
+
+The fastest way to get started. Everything is bundled in a single container—no dependencies to install.
+
+```bash
+docker run -d \
+  --name cc-metrics \
+  -p 4318:4318 \
+  -p 3000:3000 \
+  -v cc-metrics-data:/data/rethinkdb \
+  ghcr.io/lasswellt/cc-metrics:main
+```
+
+That's it! Open [http://localhost:3000](http://localhost:3000) and skip to [Step 5: Configure Claude Code](#5-configure-claude-code).
+
+**Useful Docker commands:**
+```bash
+docker logs cc-metrics          # View logs
+docker stop cc-metrics          # Stop the dashboard
+docker start cc-metrics         # Start it again
+docker rm -f cc-metrics         # Remove the container (data persists in the volume)
+docker volume rm cc-metrics-data  # Remove stored data
+```
+
+> **Note:** The volume `cc-metrics-data` persists your metrics across container restarts and upgrades. Your data is safe even if you remove and recreate the container.
+
+---
+
+### Option B: Manual Install
+
+If you prefer to run things natively or want to contribute to the project.
+
+#### Prerequisites
 
 You'll need:
 - **Node.js** 14+ ([Download here](https://nodejs.org/))
 - **RethinkDB** ([Installation guide](#installing-rethinkdb))
 - **Claude Code** with telemetry enabled
 
-### 1. Install RethinkDB
+#### 1. Install RethinkDB
 
 RethinkDB is a real-time database that makes this dashboard extra snappy with WebSocket connections.
 
@@ -66,7 +98,7 @@ docker run -d --name rethinkdb -p 28015:28015 -p 8081:8080 rethinkdb
 
 **Other platforms**: See [RethinkDB installation docs](https://rethinkdb.com/docs/install/)
 
-### 2. Start RethinkDB
+#### 2. Start RethinkDB
 
 ```bash
 rethinkdb
@@ -81,7 +113,7 @@ You should see RethinkDB start on:
 - **Port 28015**: Database connections (this is what the dashboard uses)
 - **Port 8081**: Web admin UI (optional, for database exploration)
 
-### 3. Clone and Install
+#### 3. Clone and Install
 
 ```bash
 git clone https://github.com/lasswellt/cc-metrics.git
@@ -89,7 +121,7 @@ cd cc-metrics
 npm install
 ```
 
-### 4. Start the Dashboard
+#### 4. Start the Dashboard
 
 ```bash
 npm start
@@ -147,7 +179,7 @@ set OTEL_LOGS_EXPORTER=otlp
 
 **Pro tip**: Add these to your `.bashrc`, `.zshrc`, or PowerShell profile to make them permanent!
 
-### 6. Use Claude Code Normally
+### 6. Use Claude Code
 
 That's it! Just use Claude Code like you normally would. The dashboard will automatically start collecting metrics.
 
