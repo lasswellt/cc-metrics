@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.DS_Store
+.env
+.git
+.gitignore
+.claude/
+.serena/
+*.log
+*.md
+!package.json
+!package-lock.json
